@@ -38,7 +38,10 @@
                             </select>
                         </div>
                     </div>
-                    <div class="mb-3"><label class="form-label small fw-bold">Propietario</label><input type="text" name="nombre_propietario" class="form-control" value="{{ perro.nombre_propietario or '' }}"></div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6"><label class="form-label small fw-bold">Propietario</label><input type="text" name="nombre_propietario" class="form-control" value="{{ perro.nombre_propietario or '' }}"></div>
+                        <div class="col-md-6"><label class="form-label small fw-bold text-success">WhatsApp del Dueño</label><input type="text" name="whatsapp_propietario" class="form-control" value="{{ perro.whatsapp_propietario or '' }}" required></div>
+                    </div>
                     <div class="row g-3 mb-3">
                         <div class="col-md-6"><label class="form-label small fw-bold">Sector</label><input type="text" name="sector" class="form-control" value="{{ perro.sector or '' }}" required></div>
                         <div class="col-md-6">

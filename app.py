@@ -11,9 +11,10 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = 'clave_secreta_censo_master_v6'
+app.secret_key = 'clave_secreta_censo_master_v7'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///censo_v6.db' 
+# Forzamos la creación automática de una estructura limpia v7.0
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///censo_v7.db' 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -86,6 +87,7 @@ class Canino(db.Model):
     foto = db.Column(db.String(200)); nombre = db.Column(db.String(100)); raza = db.Column(db.String(100))
     edad = db.Column(db.String(50)); sexo = db.Column(db.String(20)); estado_tenencia = db.Column(db.String(50))
     nombre_propietario = db.Column(db.String(100)); estado_salud = db.Column(db.String(100)); sector = db.Column(db.String(100))
+    whatsapp_propietario = db.Column(db.String(20)) # NUEVO CAMPO CONECTADO AL QR
     latitud = db.Column(db.Float); longitud = db.Column(db.Float)
     situacion = db.Column(db.String(100), default='Censo Normal')
     reportado_por = db.Column(db.String(100))
@@ -139,16 +141,13 @@ def sincronizar_offline():
             nuevo = Canino(
                 nombre=item.get('nombre'), raza=item.get('raza'), edad=item.get('edad'),
                 sexo=item.get('sexo'), estado_tenencia=item.get('estado_tenencia'),
-                nombre_propietario=item.get('nombre_propietario'), estado_salud=item.get('estado_salud'),
-                sector=item.get('sector'), latitud=lat, longitud=lon,
-                situacion=item.get('situacion', 'Censo Normal'), 
-                reportado_por="Sincronizado Offline", foto="",
-                esterilizado=item.get('esterilizado') == 'on',
-                desparasitado=item.get('desparasitado') == 'on',
-                vacuna_parvovirus=item.get('vacuna_parvovirus') == 'on',
-                vacuna_moquillo=item.get('vacuna_moquillo') == 'on',
-                vacuna_triple=item.get('vacuna_triple') == 'on',
-                vacuna_sextuple=item.get('vacuna_sextuple') == 'on',
+                nombre_propietario=item.get('nombre_propietario'), 
+                whatsapp_propietario=item.get('whatsapp_propietario'), # Sincroniza el whatsapp
+                estado_salud=item.get('estado_salud'), sector=item.get('sector'), latitud=lat, longitud=lon,
+                situacion=item.get('situacion', 'Censo Normal'), reportado_por="Sincronizado Offline", foto="",
+                esterilizado=item.get('esterilizado') == 'on', desparasitado=item.get('desparasitado') == 'on',
+                vacuna_parvovirus=item.get('vacuna_parvovirus') == 'on', vacuna_moquillo=item.get('vacuna_moquillo') == 'on',
+                vacuna_triple=item.get('vacuna_triple') == 'on', vacuna_sextuple=item.get('vacuna_sextuple') == 'on',
                 vacuna_antirrabica=item.get('vacuna_antirrabica') == 'on'
             )
             db.session.add(nuevo)
@@ -159,7 +158,7 @@ def sincronizar_offline():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # ==========================================
-# RUTAS RESTANTES (LOGIN, INICIO, ETC)
+# RUTAS DEL SISTEMA
 # ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
@@ -204,6 +203,7 @@ def inicio():
         nuevo = Canino(
             foto=n_f, nombre=request.form.get('nombre'), raza=request.form.get('raza'), edad=request.form.get('edad'), 
             sexo=request.form.get('sexo'), estado_tenencia=request.form.get('estado_tenencia'), nombre_propietario=request.form.get('nombre_propietario'), 
+            whatsapp_propietario=request.form.get('whatsapp_propietario'), # Captura el whatsapp
             estado_salud=request.form.get('estado_salud'), sector=request.form.get('sector'), latitud=lat, longitud=lon,
             situacion=request.form.get('situacion', 'Censo Normal'), reportado_por=current_user.nombre,
             esterilizado=request.form.get('esterilizado')=='on', desparasitado=request.form.get('desparasitado')=='on', 
@@ -229,6 +229,7 @@ def editar(id):
         if f and f.filename: p.foto = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], p.foto))
         p.nombre = request.form.get('nombre'); p.raza = request.form.get('raza'); p.edad = request.form.get('edad')
         p.sexo = request.form.get('sexo'); p.estado_tenencia = request.form.get('estado_tenencia'); p.nombre_propietario = request.form.get('nombre_propietario')
+        p.whatsapp_propietario = request.form.get('whatsapp_propietario') # Edita el whatsapp
         p.estado_salud = request.form.get('estado_salud'); p.sector = request.form.get('sector'); p.situacion = request.form.get('situacion')
         try: p.latitud = float(request.form.get('latitud') or 0)
         except: pass
@@ -299,17 +300,6 @@ def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.s
 @login_required
 def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
 
-@app.route('/subir_carrusel', methods=['POST'])
-@login_required
-def subir_carrusel():
-    for f in request.files.getlist('foto_carrusel'):
-        if f and f.filename: nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); db.session.add(Carrusel(imagen=nom))
-    db.session.commit(); return redirect(url_for('inicio'))
-
-@app.route('/eliminar_carrusel/<int:id>')
-@login_required
-def eliminar_carrusel(id): db.session.delete(Carrusel.query.get_or_404(id)); db.session.commit(); return redirect(url_for('inicio'))
-
 @app.route('/videos')
 @login_required
 def videos(): return render_template('videos.html', video=Video.query.first())
@@ -350,8 +340,8 @@ def reportes():
 @login_required
 def exportar():
     output = io.StringIO(); output.write('\ufeff'); writer = csv.writer(output, delimiter=';')
-    writer.writerow(['ID', 'Nombre', 'Raza', 'Edad', 'Sexo', 'Situacion', 'Sector', 'Salud', 'Propietario', 'Antirrabica', 'ReportadoPor'])
-    for p in Canino.query.all(): writer.writerow([p.id, p.nombre, p.raza, p.edad, p.sexo, p.situacion, p.sector, p.estado_salud, p.nombre_propietario, 'Si' if p.vacuna_antirrabica else 'No', p.reportado_por])
+    writer.writerow(['ID', 'Nombre', 'Raza', 'Edad', 'Sexo', 'Situacion', 'Sector', 'Salud', 'Propietario', 'WhatsAppPropietario', 'Antirrabica', 'ReportadoPor'])
+    for p in Canino.query.all(): writer.writerow([p.id, p.nombre, p.raza, p.edad, p.sexo, p.situacion, p.sector, p.estado_salud, p.nombre_propietario, p.whatsapp_propietario, 'Si' if p.vacuna_antirrabica else 'No', p.reportado_por])
     return Response(output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment;filename=censo.csv"})
 
 @app.route('/descargar_pdf')

@@ -77,14 +77,6 @@
                       <button type="submit" class="btn btn-primary">Subir Fotos</button>
                   </div>
               </form>
-              <div class="d-flex gap-2 flex-wrap">
-                  {% for foto in carrusel %}
-                  <div class="position-relative d-inline-block">
-                      <img src="{{ url_for('static', filename='uploads/' + foto.imagen) }}" width="120" height="80" style="object-fit: cover; border-radius: 5px; border: 1px solid #ccc;">
-                      <a href="/eliminar_carrusel/{{ foto.id }}" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger text-decoration-none" style="font-size: 14px;" onclick="return confirm('¿Borrar foto?')">❌</a>
-                  </div>
-                  {% endfor %}
-              </div>
           </div>
         </div>
       </div>
@@ -135,7 +127,11 @@
                             </select>
                         </div>
                     </div>
-                    <input type="text" name="nombre_propietario" class="form-control mb-3" placeholder="Propietario / Dueño">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6"><input type="text" name="nombre_propietario" class="form-control" placeholder="Dueño / Responsable"></div>
+                        <div class="col-md-6"><input type="text" name="whatsapp_propietario" class="form-control border-success" placeholder="WhatsApp del Dueño (Ej: 58414...)" required></div>
+                    </div>
+                    
                     <div class="row mb-3">
                         <div class="col-md-6"><input type="text" name="sector" class="form-control" placeholder="Sector/Barrio" required></div>
                         <div class="col-md-6">
@@ -219,6 +215,9 @@
                                 <td><span class="badge bg-secondary">{{ perro.estado_salud }}</span></td>
                                 <td>
                                     <div class="d-flex gap-1 justify-content-center">
+                                        {% if perro.whatsapp_propietario %}
+                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}?text=Hola,%20te%20escribo%20del%20Censo%20Canino.%20Tenemos%20novedades%20o%20una%20alerta%20sobre%20el%20expediente%20de%20tu%20mascota%20{{ perro.nombre or 'Canino' }}." target="_blank" class="btn btn-outline-success btn-sm" title="Contactar por WhatsApp">💬</a>
+                                        {% endif %}
                                         <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm">🩺</a>
                                         <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm">🪪</a>
                                         {% if current_user.rol == 'Admin' %}
@@ -284,9 +283,7 @@
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Service Worker cargado', reg.scope))
-                .catch(err => console.log('Error SW:', err));
+            navigator.serviceWorker.register('/sw.js').then(reg => console.log('SW ok')).catch(err => console.log(err));
         });
     }
 
@@ -306,7 +303,7 @@
                     offlineReports.push(reporteData);
                     localStorage.setItem('offlineReports', JSON.stringify(offlineReports));
                     
-                    alert('⚠️ Modo Offline: Reporte guardado localmente en tu teléfono.');
+                    alert('⚠️ Modo Offline: Guardado localmente en tu teléfono.');
                     formRegistro.reset();
                 }
             });
@@ -317,10 +314,7 @@
 
     function sincronizarDatos() {
         let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
-        
         if (offlineReports.length > 0) {
-            console.log('Conexión restablecida. Sincronizando datos...');
-            
             fetch('/api/sincronizar_offline', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -330,19 +324,12 @@
             .then(data => {
                 if(data.status === 'exito') {
                     localStorage.removeItem('offlineReports');
-                    alert('✅ Todos los reportes guardados offline han sido sincronizados.');
+                    alert('✅ Datos offline sincronizados con éxito.');
                     window.location.reload(); 
-                } else {
-                    console.error("Error del servidor:", data.message);
-                    alert('❌ Hubo un problema al sincronizar los datos: ' + data.message);
                 }
-            })
-            .catch(error => {
-                console.error('Fallo en fetch:', error);
             });
         }
     }
-    
     sincronizarDatos();
 </script>
 </body>
