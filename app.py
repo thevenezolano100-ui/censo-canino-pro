@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, Response, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, Response, jsonify, flash, make_response
 from datetime import datetime, date, timedelta
 import csv
 import io
@@ -101,9 +101,6 @@ with app.app_context():
         db.session.add(Usuario(username='admin', password=generate_password_hash('admin123'), rol='Admin', nombre='Administrador Principal', apellido='Censo', cedula='0000', whatsapp='0000', direccion='Sede Sinergia'))
         db.session.commit()
 
-# ==========================================
-# NOTIFICACIONES
-# ==========================================
 def enviar_notificacion(asunto, mensaje_texto):
     try:
         msg = MIMEText(mensaje_texto)
@@ -114,7 +111,55 @@ def enviar_notificacion(asunto, mensaje_texto):
     except Exception as e: print(f"Notificación omitida: {e}")
 
 # ==========================================
-# AUTENTICACIÓN
+# CONFIGURACIÓN PWA Y SINCRONIZACIÓN OFFLINE
+# ==========================================
+@app.route('/sw.js')
+def sw():
+    response = make_response(app.send_static_file('sw.js'))
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+@app.route('/manifest.json')
+def manifest():
+    return app.send_static_file('manifest.json')
+
+@app.route('/api/sincronizar_offline', methods=['POST'])
+def sincronizar_offline():
+    datos = request.get_json()
+    if not datos: return jsonify({'status': 'error', 'message': 'JSON vacío'}), 400
+        
+    try:
+        for item in datos:
+            try: lat = float(item.get('latitud') or 0)
+            except: lat = 0
+            try: lon = float(item.get('longitud') or 0)
+            except: lon = 0
+            
+            nuevo = Canino(
+                nombre=item.get('nombre'), raza=item.get('raza'), edad=item.get('edad'),
+                sexo=item.get('sexo'), estado_tenencia=item.get('estado_tenencia'),
+                nombre_propietario=item.get('nombre_propietario'), estado_salud=item.get('estado_salud'),
+                sector=item.get('sector'), latitud=lat, longitud=lon,
+                situacion=item.get('situacion', 'Censo Normal'), 
+                reportado_por="Sincronizado Offline", foto="",
+                esterilizado=item.get('esterilizado') == 'on',
+                desparasitado=item.get('desparasitado') == 'on',
+                vacuna_parvovirus=item.get('vacuna_parvovirus') == 'on',
+                vacuna_moquillo=item.get('vacuna_moquillo') == 'on',
+                vacuna_triple=item.get('vacuna_triple') == 'on',
+                vacuna_sextuple=item.get('vacuna_sextuple') == 'on',
+                vacuna_antirrabica=item.get('vacuna_antirrabica') == 'on'
+            )
+            db.session.add(nuevo)
+        db.session.commit()
+        return jsonify({'status': 'exito'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ==========================================
+# RUTAS RESTANTES (LOGIN, INICIO, ETC)
 # ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
@@ -146,9 +191,6 @@ def login():
 @login_required
 def logout(): logout_user(); return redirect(url_for('login'))
 
-# ==========================================
-# CRUD PRINCIPAL
-# ==========================================
 @app.route('/', methods=['GET', 'POST'])
 @login_required
 def inicio():
@@ -159,7 +201,6 @@ def inicio():
         except: lat = 0
         try: lon = float(request.form.get('longitud') or 0)
         except: lon = 0
-        
         nuevo = Canino(
             foto=n_f, nombre=request.form.get('nombre'), raza=request.form.get('raza'), edad=request.form.get('edad'), 
             sexo=request.form.get('sexo'), estado_tenencia=request.form.get('estado_tenencia'), nombre_propietario=request.form.get('nombre_propietario'), 
@@ -205,9 +246,6 @@ def eliminar(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     db.session.delete(Canino.query.get_or_404(id)); db.session.commit(); flash('Canino eliminado.', 'success'); return redirect(url_for('inicio'))
 
-# ==========================================
-# RUTAS DE USUARIOS Y ROLES
-# ==========================================
 @app.route('/usuarios')
 @login_required
 def gestion_usuarios():
@@ -223,9 +261,6 @@ def cambiar_clave_usuario(id):
     if nueva_clave: u.password = generate_password_hash(nueva_clave); db.session.commit(); flash(f'Clave de {u.username} actualizada.', 'success')
     return redirect(url_for('gestion_usuarios'))
 
-# ==========================================
-# ALERTAS Y CITAS
-# ==========================================
 @app.route('/alertas', methods=['GET', 'POST'])
 @login_required
 def alertas():
@@ -264,9 +299,6 @@ def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.s
 @login_required
 def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
 
-# ==========================================
-# MULTIMEDIA Y OTROS
-# ==========================================
 @app.route('/subir_carrusel', methods=['POST'])
 @login_required
 def subir_carrusel():
@@ -348,12 +380,8 @@ def historial(id):
 def eliminar_consulta(id):
     c = Consulta.query.get_or_404(id); c_id = c.canino_id; db.session.delete(c); db.session.commit(); return redirect(url_for('historial', id=c_id))
 
-# ==========================================
-# RUTA DE RESCATE QR (NUEVA)
-# ==========================================
 @app.route('/rescate/<int:id>', methods=['GET', 'POST'])
 def rescate(id):
-    # Nota: Esta ruta NO lleva @login_required porque el que escanea en la calle no tiene cuenta.
     p = Canino.query.get_or_404(id)
     if request.method == 'POST':
         datos = request.get_json()
@@ -361,30 +389,10 @@ def rescate(id):
         p.longitud = datos.get('lon')
         p.situacion = '¡ALERTA QR! Escaneado en calle'
         db.session.commit()
-        
-        # Enviar correo al administrador del sistema
         asunto = f"🚨 ALERTA GPS: {p.nombre} ha sido escaneado"
         mensaje = f"URGENTE: Alguien acaba de escanear el carnet de {p.nombre or 'un canino'}.\nLas nuevas coordenadas GPS se han actualizado en el sistema.\nRevisa el mapa epidemiológico de inmediato."
         enviar_notificacion(asunto, mensaje)
-        
         return jsonify({"status": "exito"})
     return render_template('rescate.html', perro=p)
-
-# ==========================================
-# CONFIGURACIÓN PWA Y MODO OFFLINE
-# ==========================================
-from flask import make_response # Asegúrate de importar esto arriba si no lo tienes, o simplemente úsalo así:
-
-@app.route('/sw.js')
-def sw():
-    response = make_response(app.send_static_file('sw.js'))
-    # Obligamos al navegador a leerlo como código y no guardarlo en caché antigua
-    response.headers['Content-Type'] = 'application/javascript'
-    response.headers['Cache-Control'] = 'no-cache'
-    return response
-
-@app.route('/manifest.json')
-def manifest():
-    return app.send_static_file('manifest.json')
 
 if __name__ == '__main__': app.run(debug=True)

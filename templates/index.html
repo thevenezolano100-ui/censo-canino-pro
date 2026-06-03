@@ -6,9 +6,7 @@
     <title>Censo Canino Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <link rel="manifest" href="/manifest.json">
-    
     <style>
         body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
         .navbar-custom { background: #0d6efd; color: white; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -114,7 +112,7 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="fw-bold small text-danger">⚠️ Situación Crítica del Animal</label>
+                        <label class="fw-bold small text-danger">⚠️ Situación Crítica</label>
                         <select name="situacion" class="form-select border-danger" required>
                             <option value="Censo Normal">Censo Normal (Sano / En Casa)</option>
                             <option value="Situación de Hambre">Situación de Hambre</option>
@@ -166,7 +164,7 @@
                         <label class="ms-2 text-danger fw-bold small">💉 Vacuna Antirrábica Aplicada</label>
                     </div>
 
-                    <h6 class="mt-2 border-bottom pb-2">📍 Captura de Ubicación GPS</h6>
+                    <h6 class="mt-2 border-bottom pb-2">📍 Captura GPS</h6>
                     <div id="map-registro" class="mb-3"></div>
                     <input type="hidden" name="latitud" id="latitud" value="0">
                     <input type="hidden" name="longitud" id="longitud" value="0">
@@ -284,58 +282,45 @@
 </script>
 
 <script>
-    // 1. Registro del Service Worker para soporte de carga Offline
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Service Worker cargado con alcance:', reg.scope))
-                .catch(err => console.log('Fallo al registrar Service Worker:', err));
+                .then(reg => console.log('Service Worker cargado', reg.scope))
+                .catch(err => console.log('Error SW:', err));
         });
     }
 
-    // 2. Interceptador del Formulario en caso de no haber conexión
     document.addEventListener("DOMContentLoaded", function() {
         const formRegistro = document.querySelector('form[action="/"]');
-        
         if(formRegistro) {
             formRegistro.addEventListener('submit', function(e) {
-                // Evaluamos si el dispositivo está desconectado del internet
                 if (!navigator.onLine) {
-                    e.preventDefault(); // Detiene el envío tradicional del navegador
-                    
-                    // Extrae las cajas de texto del formulario
+                    e.preventDefault(); 
                     const formData = new FormData(formRegistro);
                     const reporteData = {};
                     formData.forEach((value, key) => {
-                        if(key !== 'foto') { // Omitimos la foto en modo fuera de línea estricto
-                            reporteData[key] = value;
-                        }
+                        if(key !== 'foto') { reporteData[key] = value; }
                     });
                     
-                    // Extrae reportes viejos guardados en el LocalStorage o crea una lista limpia
                     let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
                     offlineReports.push(reporteData);
-                    
-                    // Almacena la lista actualizada en el disco del navegador
                     localStorage.setItem('offlineReports', JSON.stringify(offlineReports));
                     
-                    alert('⚠️ Estás sin conexión en Táchira. El reporte se ha guardado localmente en tu teléfono y se enviará automáticamente cuando recuperes los datos móviles o Wi-Fi.');
+                    alert('⚠️ Modo Offline: Reporte guardado localmente en tu teléfono.');
                     formRegistro.reset();
                 }
             });
         }
     });
 
-    // 3. Función de Sincronización Automática con el Servidor Flask
     window.addEventListener('online', sincronizarDatos);
 
     function sincronizarDatos() {
         let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
         
         if (offlineReports.length > 0) {
-            console.log('Conexión detectada. Sincronizando reportes locales con la base de datos...');
+            console.log('Conexión restablecida. Sincronizando datos...');
             
-            // Hacemos el envío masivo en segundo plano hacia Python
             fetch('/api/sincronizar_offline', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -344,17 +329,20 @@
             .then(response => response.json())
             .then(data => {
                 if(data.status === 'exito') {
-                    // Limpiamos la caché del navegador si Flask los guardó con éxito
                     localStorage.removeItem('offlineReports');
-                    alert('✅ ¡Conexión restablecida! Todos los reportes guardados offline han sido sincronizados.');
-                    window.location.reload(); // Recarga para ver los casos en la tabla
+                    alert('✅ Todos los reportes guardados offline han sido sincronizados.');
+                    window.location.reload(); 
+                } else {
+                    console.error("Error del servidor:", data.message);
+                    alert('❌ Hubo un problema al sincronizar los datos: ' + data.message);
                 }
             })
-            .catch(error => console.error('Error durante la sincronización remota:', error));
+            .catch(error => {
+                console.error('Fallo en fetch:', error);
+            });
         }
     }
     
-    // Verificación inmediata al abrir el navegador
     sincronizarDatos();
 </script>
 </body>
