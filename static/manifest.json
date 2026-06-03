@@ -1,0 +1,15 @@
+{
+  "name": "Censo Canino Pro",
+  "short_name": "CensoCanino",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#0d6efd",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/91/91544.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

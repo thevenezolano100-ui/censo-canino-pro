@@ -370,4 +370,21 @@ def rescate(id):
         return jsonify({"status": "exito"})
     return render_template('rescate.html', perro=p)
 
+# ==========================================
+# CONFIGURACIÓN PWA Y MODO OFFLINE
+# ==========================================
+from flask import make_response # Asegúrate de importar esto arriba si no lo tienes, o simplemente úsalo así:
+
+@app.route('/sw.js')
+def sw():
+    response = make_response(app.send_static_file('sw.js'))
+    # Obligamos al navegador a leerlo como código y no guardarlo en caché antigua
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+@app.route('/manifest.json')
+def manifest():
+    return app.send_static_file('manifest.json')
+
 if __name__ == '__main__': app.run(debug=True)

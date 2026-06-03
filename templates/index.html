@@ -6,6 +6,9 @@
     <title>Censo Canino Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="manifest" href="/manifest.json">
+    
     <style>
         body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
         .navbar-custom { background: #0d6efd; color: white; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -28,7 +31,7 @@
             <a href="/videos" class="btn btn-info text-white shadow-sm btn-sm">🎬 Videos</a>
             <a href="/manual" class="btn btn-dark shadow-sm btn-sm">📖 Manual Médico</a>
             {% if current_user.rol == 'Admin' %}
-            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm bg-purple" style="background: #6f42c1; border: none;">👥 Usuarios</a>
+            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm" style="background: #6f42c1; border: none;">👥 Usuarios</a>
             {% endif %}
             <a href="/logout" class="btn btn-outline-light ms-md-3 btn-sm">Salir</a>
         </div>
@@ -73,7 +76,7 @@
               <form method="POST" action="/subir_carrusel" enctype="multipart/form-data" class="mb-4">
                   <div class="input-group">
                       <input type="file" name="foto_carrusel" class="form-control" accept="image/*" multiple required>
-                      <button type="submit" class="btn btn-primary">Subir Archivos</button>
+                      <button type="submit" class="btn btn-primary">Subir Fotos</button>
                   </div>
               </form>
               <div class="d-flex gap-2 flex-wrap">
@@ -218,7 +221,7 @@
                                 <td><span class="badge bg-secondary">{{ perro.estado_salud }}</span></td>
                                 <td>
                                     <div class="d-flex gap-1 justify-content-center">
-                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm">%</a>
+                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm">🩺</a>
                                         <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm">🪪</a>
                                         {% if current_user.rol == 'Admin' %}
                                         <a href="/editar/{{ perro.id }}" class="btn btn-outline-warning btn-sm">✏️</a>
@@ -278,6 +281,81 @@
         });
         setTimeout(function(){ mapReg.invalidateSize(); }, 500);
     });
+</script>
+
+<script>
+    // 1. Registro del Service Worker para soporte de carga Offline
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Service Worker cargado con alcance:', reg.scope))
+                .catch(err => console.log('Fallo al registrar Service Worker:', err));
+        });
+    }
+
+    // 2. Interceptador del Formulario en caso de no haber conexión
+    document.addEventListener("DOMContentLoaded", function() {
+        const formRegistro = document.querySelector('form[action="/"]');
+        
+        if(formRegistro) {
+            formRegistro.addEventListener('submit', function(e) {
+                // Evaluamos si el dispositivo está desconectado del internet
+                if (!navigator.onLine) {
+                    e.preventDefault(); // Detiene el envío tradicional del navegador
+                    
+                    // Extrae las cajas de texto del formulario
+                    const formData = new FormData(formRegistro);
+                    const reporteData = {};
+                    formData.forEach((value, key) => {
+                        if(key !== 'foto') { // Omitimos la foto en modo fuera de línea estricto
+                            reporteData[key] = value;
+                        }
+                    });
+                    
+                    // Extrae reportes viejos guardados en el LocalStorage o crea una lista limpia
+                    let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
+                    offlineReports.push(reporteData);
+                    
+                    // Almacena la lista actualizada en el disco del navegador
+                    localStorage.setItem('offlineReports', JSON.stringify(offlineReports));
+                    
+                    alert('⚠️ Estás sin conexión en Táchira. El reporte se ha guardado localmente en tu teléfono y se enviará automáticamente cuando recuperes los datos móviles o Wi-Fi.');
+                    formRegistro.reset();
+                }
+            });
+        }
+    });
+
+    // 3. Función de Sincronización Automática con el Servidor Flask
+    window.addEventListener('online', sincronizarDatos);
+
+    function sincronizarDatos() {
+        let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
+        
+        if (offlineReports.length > 0) {
+            console.log('Conexión detectada. Sincronizando reportes locales con la base de datos...');
+            
+            // Hacemos el envío masivo en segundo plano hacia Python
+            fetch('/api/sincronizar_offline', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(offlineReports)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === 'exito') {
+                    // Limpiamos la caché del navegador si Flask los guardó con éxito
+                    localStorage.removeItem('offlineReports');
+                    alert('✅ ¡Conexión restablecida! Todos los reportes guardados offline han sido sincronizados.');
+                    window.location.reload(); // Recarga para ver los casos en la tabla
+                }
+            })
+            .catch(error => console.error('Error durante la sincronización remota:', error));
+        }
+    }
+    
+    // Verificación inmediata al abrir el navegador
+    sincronizarDatos();
 </script>
 </body>
 </html>
