@@ -13,14 +13,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_censo_master_v7'
 
-# ============================================================
-# SOLUCIÓN SENIOR: Configuración de Ruta Absoluta para Uploads
-# ============================================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Mantener la estructura de datos v7
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///censo_v7.db' 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -163,7 +159,7 @@ def sincronizar_offline():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # ==========================================
-# RUTAS DEL SISTEMA
+# RUTAS DEL SISTEMA (LOGIN Y CRUD)
 # ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
@@ -252,6 +248,9 @@ def eliminar(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     db.session.delete(Canino.query.get_or_404(id)); db.session.commit(); flash('Canino eliminado.', 'success'); return redirect(url_for('inicio'))
 
+# ==========================================
+# RUTAS DE USUARIOS Y ROLES
+# ==========================================
 @app.route('/usuarios')
 @login_required
 def gestion_usuarios():
@@ -267,6 +266,9 @@ def cambiar_clave_usuario(id):
     if nueva_clave: u.password = generate_password_hash(nueva_clave); db.session.commit(); flash(f'Clave de {u.username} actualizada.', 'success')
     return redirect(url_for('gestion_usuarios'))
 
+# ==========================================
+# ALERTAS Y CITAS
+# ==========================================
 @app.route('/alertas', methods=['GET', 'POST'])
 @login_required
 def alertas():
@@ -305,6 +307,20 @@ def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.s
 @login_required
 def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
 
+# ==========================================
+# MULTIMEDIA
+# ==========================================
+@app.route('/subir_carrusel', methods=['POST'])
+@login_required
+def subir_carrusel():
+    for f in request.files.getlist('foto_carrusel'):
+        if f and f.filename: nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); db.session.add(Carrusel(imagen=nom))
+    db.session.commit(); return redirect(url_for('inicio'))
+
+@app.route('/eliminar_carrusel/<int:id>')
+@login_required
+def eliminar_carrusel(id): db.session.delete(Carrusel.query.get_or_404(id)); db.session.commit(); return redirect(url_for('inicio'))
+
 @app.route('/videos')
 @login_required
 def videos(): return render_template('videos.html', video=Video.query.first())
@@ -335,6 +351,53 @@ def subir_manual():
         db.session.add(ManualDoc(archivo=nom)); db.session.commit()
     return redirect(url_for('manual'))
 
+# ==========================================
+# REPORTES, MAPAS Y DESCARGAS RESTAURADAS
+# ==========================================
+@app.route('/reportes')
+@login_required
+def reportes():
+    v_c = [Canino.query.filter_by(vacuna_parvovirus=True).count(), Canino.query.filter_by(vacuna_moquillo=True).count(), Canino.query.filter_by(vacuna_triple=True).count(), Canino.query.filter_by(vacuna_sextuple=True).count(), Canino.query.filter_by(vacuna_antirrabica=True).count()]
+    return render_template('reportes.html', total_perros=Canino.query.count(), total_consultas=Consulta.query.count(), total_citas=Cita.query.count(), macho_count=Canino.query.filter_by(sexo='Macho').count(), hembra_count=Canino.query.filter_by(sexo='Hembra').count(), sano_count=Canino.query.filter_by(estado_salud='Sano').count(), enfermo_count=Canino.query.filter_by(estado_salud='Enfermo').count(), tratamiento_count=Canino.query.filter_by(estado_salud='En Tratamiento').count(), vacunas_labels=['Parvovirus', 'Moquillo', 'Triple', 'Sextuple', 'Antirrábica'], vacunas_counts=v_c, citas_pendientes=Cita.query.filter_by(estado='Pendiente').count(), citas_completadas=Cita.query.filter_by(estado='Aceptada').count())
+
+@app.route('/exportar')
+@login_required
+def exportar():
+    output = io.StringIO(); output.write('\ufeff'); writer = csv.writer(output, delimiter=';')
+    writer.writerow(['ID', 'Nombre', 'Raza', 'Edad', 'Sexo', 'Situacion', 'Sector', 'Salud', 'Propietario', 'WhatsAppPropietario', 'Antirrabica', 'ReportadoPor'])
+    for p in Canino.query.all(): writer.writerow([p.id, p.nombre, p.raza, p.edad, p.sexo, p.situacion, p.sector, p.estado_salud, p.nombre_propietario, p.whatsapp_propietario, 'Si' if p.vacuna_antirrabica else 'No', p.reportado_por])
+    return Response(output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment;filename=censo_tachira.csv"})
+
+@app.route('/descargar_pdf')
+@login_required
+def descargar_pdf(): return render_template('pdf.html', caninos=Canino.query.all())
+
+@app.route('/mapa_general')
+@login_required
+def mapa_general(): return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
+
+# ==========================================
+# HISTORIAL, CARNET Y RESCATE QR
+# ==========================================
+@app.route('/carnet/<int:id>')
+@login_required
+def carnet(id): 
+    return render_template('carnet.html', perro=Canino.query.get_or_404(id))
+
+@app.route('/historial/<int:id>', methods=['GET', 'POST'])
+@login_required
+def historial(id):
+    p = Canino.query.get_or_404(id)
+    if request.method == 'POST':
+        db.session.add(Consulta(peso=request.form.get('peso'), sintomas=request.form.get('sintomas'), diagnostico=request.form.get('diagnostico'), tratamiento=request.form.get('tratamiento'), canino_id=p.id))
+        db.session.commit(); return redirect(url_for('historial', id=p.id))
+    return render_template('historial.html', perro=p)
+
+@app.route('/historial/eliminar/<int:id>')
+@login_required
+def eliminar_consulta(id):
+    c = Consulta.query.get_or_404(id); c_id = c.canino_id; db.session.delete(c); db.session.commit(); return redirect(url_for('historial', id=c_id))
+
 @app.route('/rescate/<int:id>', methods=['GET', 'POST'])
 def rescate(id):
     p = Canino.query.get_or_404(id)
@@ -349,34 +412,5 @@ def rescate(id):
         enviar_notificacion(asunto, mensaje)
         return jsonify({"status": "exito"})
     return render_template('rescate.html', perro=p)
-# ==========================================
-# RUTAS DE CARNET E HISTORIAL
-# ==========================================
-
-@app.route('/carnet/<int:id>')
-@login_required
-def carnet(id): 
-    perro_encontrado = Canino.query.get_or_404(id)
-    return render_template('carnet.html', perro=perro_encontrado)
-
-@app.route('/historial/<int:id>', methods=['GET', 'POST'])
-@login_required
-def historial(id):
-    p = Canino.query.get_or_404(id)
-    
-    if request.method == 'POST':
-        nueva_consulta = Consulta(
-            peso=request.form.get('peso'), 
-            sintomas=request.form.get('sintomas'), 
-            diagnostico=request.form.get('diagnostico'), 
-            tratamiento=request.form.get('tratamiento'), 
-            canino_id=p.id
-        )
-        db.session.add(nueva_consulta)
-        db.session.commit()
-        flash('Consulta médica guardada correctamente.', 'success')
-        return redirect(url_for('historial', id=p.id))
-        
-    return render_template('historial.html', perro=p)
 
 if __name__ == '__main__': app.run(debug=True)
