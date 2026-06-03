@@ -1,36 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Mapa Epidemiológico</title>
+    <title>Mapa Epidemiológico y de Calor</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif;}
         #mapa-full { height: calc(100vh - 60px); width: 100%; background: #e0e0e0; }
         .nav-map { height: 60px; background: #212529; color: white; display: flex; justify-content: space-between; align-items: center; padding: 0 20px;}
     </style>
 </head>
 <body>
-    <div class="nav-map shadow"><h4 class="m-0">🗺️ Mapa de Monitoreo Epidemiológico</h4><a href="/" class="btn btn-outline-light btn-sm">Volver</a></div>
+    <!-- Barra de navegación superior -->
+    <div class="nav-map shadow">
+        <h4 class="m-0">🗺️ Mapa de Monitoreo Epidemiológico</h4>
+        <div>
+            <!-- Botón que ejecuta la función JavaScript para encender/apagar el calor -->
+            <button class="btn btn-outline-danger btn-sm me-2 fw-bold" onclick="toggleCalor()">🔥 Activar Mapa de Calor</button>
+            <a href="/" class="btn btn-outline-light btn-sm">Volver al Panel</a>
+        </div>
+    </div>
+    
+    <!-- Contenedor donde se dibujará el mapa -->
     <div id="mapa-full"></div>
+    
+    <!-- 1. Librería base de Leaflet -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 2. Nueva Librería: Plugin para generar los gradientes de calor -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            // Inicializamos el mapa
             var map = L.map('mapa-full').setView([10.48, -66.90], 5);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            var g = new L.featureGroup();
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            var marcadoresGrupo = new L.featureGroup();
+            var puntosCalor = []; // Lista vacía que guardará solo a los enfermos
+
+            // Ciclo que trae los datos desde Python (Flask)
             {% for p in perros %}
-                var c = "green";
-                {% if p.estado_salud == 'Enfermo' %} c = "red";
-                {% elif p.estado_salud == 'En Tratamiento' %} c = "orange"; {% endif %}
-                var m = L.circleMarker([{{ p.latitud }}, {{ p.longitud }}], { radius: 8, fillColor: c, color: "#000", weight: 1, fillOpacity: 0.9 });
-                m.bindPopup("<b>{{ p.nombre }}</b><br>Salud: {{ p.estado_salud }}<br>Situación: {{ p.situacion }}");
-                g.addLayer(m);
+                var lat = {{ p.latitud }};
+                var lon = {{ p.longitud }};
+                var salud = "{{ p.estado_salud }}";
+                var situacion = "{{ p.situacion }}";
+                
+                // Definimos el color del punto normal
+                var color = "green";
+                if (salud === 'Enfermo') color = "red";
+                else if (salud === 'En Tratamiento') color = "orange";
+                
+                // Dibujamos el punto normal y lo guardamos
+                var m = L.circleMarker([lat, lon], { radius: 8, fillColor: color, color: "#000", weight: 1, fillOpacity: 0.9 });
+                m.bindPopup("<b>{{ p.nombre or 'S/N' }}</b><br>Salud: " + salud + "<br>Situación: " + situacion);
+                marcadoresGrupo.addLayer(m);
+
+                // LÓGICA EPIDEMIOLÓGICA: Si está enfermo o en tratamiento, lo añadimos a la lista de calor
+                // El número '1' al final de la coordenada indica la intensidad del foco
+                if (salud === 'Enfermo' || salud === 'En Tratamiento') {
+                    puntosCalor.push([lat, lon, 1]); 
+                }
             {% endfor %}
-            if (g.getLayers().length > 0) { map.addLayer(g); map.fitBounds(g.getBounds(), {padding: [50, 50]}); }
+
+            // Agregamos todos los puntos normales al mapa al cargar la página
+            map.addLayer(marcadoresGrupo);
+            
+            // Creamos la "Capa Térmica" usando los datos filtrados
+            // Parámetros ajustables: radius (tamaño de mancha) y blur (difuminado)
+            var capaCalor = L.heatLayer(puntosCalor, {
+                radius: 40,      
+                blur: 25,        
+                maxZoom: 15,     
+                gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'} 
+            });
+
+            // Guardamos variables globales para usarlas en el botón de alternar
+            window.capaCalorActiva = false;
+            window.capaCalor = capaCalor;
+            window.map = map;
+
+            // Centramos la cámara automáticamente donde estén todos los perritos
+            if (marcadoresGrupo.getLayers().length > 0) { 
+                map.fitBounds(marcadoresGrupo.getBounds(), {padding: [50, 50]}); 
+            }
+            
             setTimeout(function(){ map.invalidateSize(); }, 500);
         });
+
+        // Función JavaScript para el botón superior
+        function toggleCalor() {
+            var btn = document.querySelector("button[onclick='toggleCalor()']");
+            
+            if (window.capaCalorActiva) {
+                // Si el calor está encendido, lo apagamos
+                window.map.removeLayer(window.capaCalor);
+                window.capaCalorActiva = false;
+                btn.innerHTML = "🔥 Activar Mapa de Calor";
+                btn.classList.replace("btn-danger", "btn-outline-danger");
+            } else {
+                // Si está apagado, encendemos la capa térmica
+                window.map.addLayer(window.capaCalor);
+                window.capaCalorActiva = true;
+                btn.innerHTML = "❌ Ocultar Mapa de Calor";
+                btn.classList.replace("btn-outline-danger", "btn-danger");
+            }
+        }
     </script>
 </body>
 </html>
