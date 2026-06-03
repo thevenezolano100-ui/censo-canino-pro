@@ -13,11 +13,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_censo_master_v7'
 
-# Forzamos la creación automática de una estructura limpia v7.0
+# ============================================================
+# SOLUCIÓN SENIOR: Configuración de Ruta Absoluta para Uploads
+# ============================================================
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Mantener la estructura de datos v7
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///censo_v7.db' 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -87,7 +92,7 @@ class Canino(db.Model):
     foto = db.Column(db.String(200)); nombre = db.Column(db.String(100)); raza = db.Column(db.String(100))
     edad = db.Column(db.String(50)); sexo = db.Column(db.String(20)); estado_tenencia = db.Column(db.String(50))
     nombre_propietario = db.Column(db.String(100)); estado_salud = db.Column(db.String(100)); sector = db.Column(db.String(100))
-    whatsapp_propietario = db.Column(db.String(20)) # NUEVO CAMPO CONECTADO AL QR
+    whatsapp_propietario = db.Column(db.String(20))
     latitud = db.Column(db.Float); longitud = db.Column(db.Float)
     situacion = db.Column(db.String(100), default='Censo Normal')
     reportado_por = db.Column(db.String(100))
@@ -142,7 +147,7 @@ def sincronizar_offline():
                 nombre=item.get('nombre'), raza=item.get('raza'), edad=item.get('edad'),
                 sexo=item.get('sexo'), estado_tenencia=item.get('estado_tenencia'),
                 nombre_propietario=item.get('nombre_propietario'), 
-                whatsapp_propietario=item.get('whatsapp_propietario'), # Sincroniza el whatsapp
+                whatsapp_propietario=item.get('whatsapp_propietario'),
                 estado_salud=item.get('estado_salud'), sector=item.get('sector'), latitud=lat, longitud=lon,
                 situacion=item.get('situacion', 'Censo Normal'), reportado_por="Sincronizado Offline", foto="",
                 esterilizado=item.get('esterilizado') == 'on', desparasitado=item.get('desparasitado') == 'on',
@@ -203,7 +208,7 @@ def inicio():
         nuevo = Canino(
             foto=n_f, nombre=request.form.get('nombre'), raza=request.form.get('raza'), edad=request.form.get('edad'), 
             sexo=request.form.get('sexo'), estado_tenencia=request.form.get('estado_tenencia'), nombre_propietario=request.form.get('nombre_propietario'), 
-            whatsapp_propietario=request.form.get('whatsapp_propietario'), # Captura el whatsapp
+            whatsapp_propietario=request.form.get('whatsapp_propietario'),
             estado_salud=request.form.get('estado_salud'), sector=request.form.get('sector'), latitud=lat, longitud=lon,
             situacion=request.form.get('situacion', 'Censo Normal'), reportado_por=current_user.nombre,
             esterilizado=request.form.get('esterilizado')=='on', desparasitado=request.form.get('desparasitado')=='on', 
@@ -229,7 +234,7 @@ def editar(id):
         if f and f.filename: p.foto = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], p.foto))
         p.nombre = request.form.get('nombre'); p.raza = request.form.get('raza'); p.edad = request.form.get('edad')
         p.sexo = request.form.get('sexo'); p.estado_tenencia = request.form.get('estado_tenencia'); p.nombre_propietario = request.form.get('nombre_propietario')
-        p.whatsapp_propietario = request.form.get('whatsapp_propietario') # Edita el whatsapp
+        p.whatsapp_propietario = request.form.get('whatsapp_propietario')
         p.estado_salud = request.form.get('estado_salud'); p.sector = request.form.get('sector'); p.situacion = request.form.get('situacion')
         try: p.latitud = float(request.form.get('latitud') or 0)
         except: pass
@@ -329,46 +334,6 @@ def subir_manual():
         if m_v: db.session.delete(m_v)
         db.session.add(ManualDoc(archivo=nom)); db.session.commit()
     return redirect(url_for('manual'))
-
-@app.route('/reportes')
-@login_required
-def reportes():
-    v_c = [Canino.query.filter_by(vacuna_parvovirus=True).count(), Canino.query.filter_by(vacuna_moquillo=True).count(), Canino.query.filter_by(vacuna_triple=True).count(), Canino.query.filter_by(vacuna_sextuple=True).count(), Canino.query.filter_by(vacuna_antirrabica=True).count()]
-    return render_template('reportes.html', total_perros=Canino.query.count(), total_consultas=Consulta.query.count(), total_citas=Cita.query.count(), macho_count=Canino.query.filter_by(sexo='Macho').count(), hembra_count=Canino.query.filter_by(sexo='Hembra').count(), sano_count=Canino.query.filter_by(estado_salud='Sano').count(), enfermo_count=Canino.query.filter_by(estado_salud='Enfermo').count(), tratamiento_count=Canino.query.filter_by(estado_salud='En Tratamiento').count(), vacunas_labels=['Parvovirus', 'Moquillo', 'Triple', 'Sextuple', 'Antirrábica'], vacunas_counts=v_c, citas_pendientes=Cita.query.filter_by(estado='Pendiente').count(), citas_completadas=Cita.query.filter_by(estado='Aceptada').count())
-
-@app.route('/exportar')
-@login_required
-def exportar():
-    output = io.StringIO(); output.write('\ufeff'); writer = csv.writer(output, delimiter=';')
-    writer.writerow(['ID', 'Nombre', 'Raza', 'Edad', 'Sexo', 'Situacion', 'Sector', 'Salud', 'Propietario', 'WhatsAppPropietario', 'Antirrabica', 'ReportadoPor'])
-    for p in Canino.query.all(): writer.writerow([p.id, p.nombre, p.raza, p.edad, p.sexo, p.situacion, p.sector, p.estado_salud, p.nombre_propietario, p.whatsapp_propietario, 'Si' if p.vacuna_antirrabica else 'No', p.reportado_por])
-    return Response(output.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment;filename=censo.csv"})
-
-@app.route('/descargar_pdf')
-@login_required
-def descargar_pdf(): return render_template('pdf.html', caninos=Canino.query.all())
-
-@app.route('/mapa_general')
-@login_required
-def mapa_general(): return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
-
-@app.route('/carnet/<int:id>')
-@login_required
-def carnet(id): return render_template('carnet.html', perro=Canino.query.get_or_404(id))
-
-@app.route('/historial/<int:id>', methods=['GET', 'POST'])
-@login_required
-def historial(id):
-    p = Canino.query.get_or_404(id)
-    if request.method == 'POST':
-        db.session.add(Consulta(peso=request.form.get('peso'), sintomas=request.form.get('sintomas'), diagnostico=request.form.get('diagnostico'), tratamiento=request.form.get('tratamiento'), canino_id=p.id))
-        db.session.commit(); return redirect(url_for('historial', id=p.id))
-    return render_template('historial.html', perro=p)
-
-@app.route('/historial/eliminar/<int:id>')
-@login_required
-def eliminar_consulta(id):
-    c = Consulta.query.get_or_404(id); c_id = c.canino_id; db.session.delete(c); db.session.commit(); return redirect(url_for('historial', id=c_id))
 
 @app.route('/rescate/<int:id>', methods=['GET', 'POST'])
 def rescate(id):
