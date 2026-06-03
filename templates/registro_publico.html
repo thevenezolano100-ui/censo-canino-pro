@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Unirse al Censo Canino</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        .card { width: 450px; border-radius: 15px; border: none; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <div class="card p-4">
+        <h3 class="text-center text-primary mb-4 fw-bold">Crear Cuenta de Ciudadano</h3>
+        <form method="POST">
+            <div class="row g-2 mb-3">
+                <div class="col-6"><input type="text" name="nombre" class="form-control" placeholder="Nombre" required></div>
+                <div class="col-6"><input type="text" name="apellido" class="form-control" placeholder="Apellido" required></div>
+            </div>
+            <input type="text" name="cedula" class="form-control mb-3" placeholder="Número de Cédula o Identificación" required>
+            <input type="text" name="whatsapp" class="form-control mb-3" placeholder="Número de WhatsApp Activo" required>
+            <input type="text" name="direccion" class="form-control mb-3" placeholder="Dirección de Habitación Corta" required>
+            <hr>
+            <input type="text" name="username" class="form-control mb-3" placeholder="Usuario o Correo Electrónico" required>
+            <input type="password" name="password" class="form-control mb-3" placeholder="Contraseña de Ingreso" required>
+            <button type="submit" class="btn btn-primary w-100 mb-3 shadow-sm">Registrarme Ahora</button>
+            <div class="text-center"><a href="/login" class="text-decoration-none small">¿Ya tienes una cuenta? Inicia sesión aquí</a></div>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Estadístico</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+        /* Forzamos un color de fondo limpio y controlado para la captura del PDF */
+        #contenido-reporte { background-color: #f0f2f5; padding: 20px; border-radius: 15px; }
+        .card-stat { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4 mb-5">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary fw-bold">📊 Dashboard de Análisis Epidemiológico</h2>
+        <div>
+            {% if current_user.rol == 'Admin' %}
+            <button onclick="descargarPDF()" class="btn btn-danger shadow-sm me-2">📄 Descargar PDF</button>
+            {% endif %}
+            <a href="/" class="btn btn-secondary shadow-sm">Volver al Panel</a>
+        </div>
+    </div>
+
+    <div id="contenido-reporte">
+        
+        <div class="row text-center mb-4">
+            <div class="col-md-3 mb-3"><div class="card p-3 bg-primary text-white card-stat"><h5>Total Caninos</h5><h2>{{ total_perros }}</h2></div></div>
+            <div class="col-md-3 mb-3"><div class="card p-3 bg-success text-white card-stat"><h5>Consultas Clínicas</h5><h2>{{ total_consultas }}</h2></div></div>
+            <div class="col-md-3 mb-3"><div class="card p-3 bg-warning text-dark card-stat"><h5>Citas Pendientes</h5><h2>{{ citas_pendientes }}</h2></div></div>
+            <div class="col-md-3 mb-3"><div class="card p-3 bg-info text-white card-stat"><h5>Citas Completadas</h5><h2>{{ citas_completadas }}</h2></div></div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card p-4 card-stat bg-white">
+                    <h5 class="text-center text-secondary mb-3">Cobertura Sanitaria (Vacunas)</h5>
+                    <div style="height: 280px; position: relative;">
+                        <canvas id="chartVacunas"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="card p-4 card-stat bg-white">
+                    <h5 class="text-center text-secondary mb-3">Distribución por Género</h5>
+                    <div style="height: 280px; position: relative;">
+                        <canvas id="chartSexo"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="card p-4 card-stat bg-white">
+                    <h5 class="text-center text-secondary mb-3">Salud Poblacional</h5>
+                    <div style="height: 280px; position: relative;">
+                        <canvas id="chartSalud"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+<script>
+    // Inicialización de Gráficos con dimensiones fijas controladas
+    new Chart(document.getElementById('chartVacunas'), {
+        type: 'bar',
+        data: {
+            labels: {{ vacunas_labels|tojson|safe }},
+            datasets: [{ data: {{ vacunas_counts|tojson|safe }}, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'], borderRadius: 5 }]
+        },
+        options: { plugins: { legend: { display: false } }, maintainAspectRatio: false }
+    });
+
+    new Chart(document.getElementById('chartSexo'), {
+        type: 'doughnut',
+        data: { labels: ['Machos', 'Hembras'], datasets: [{ data: [{{ macho_count }}, {{ hembra_count }}], backgroundColor: ['#2563eb', '#db2777'], borderWidth: 0 }] },
+        options: { maintainAspectRatio: false }
+    });
+
+    new Chart(document.getElementById('chartSalud'), {
+        type: 'pie',
+        data: { labels: ['Sano', 'Enfermo', 'Tratamiento'], datasets: [{ data: [{{ sano_count }}, {{ enfermo_count }}, {{ tratamiento_count }}], backgroundColor: ['#22c55e', '#ef4444', '#facc15'], borderWidth: 0 }] },
+        options: { maintainAspectRatio: false }
+    });
+
+    // Función de impresión corregida y ajustada a la escala del contenedor
+    function descargarPDF() {
+        var elemento = document.getElementById('contenido-reporte');
+        
+        var opciones = {
+            margin:       [0.4, 0.4, 0.4, 0.4], // Márgenes proporcionales en pulgadas
+            filename:     'Reporte_Epidemiologico_Censo.pdf',
+            image:        { type: 'jpeg', quality: 1.0 },
+            html2canvas:  { 
+                scale: 2, 
+                useCORS: true,
+                logging: false,
+                width: elemento.offsetWidth // Captura basándose en el ancho exacto visible
+            },
+            jsPDF:        { 
+                unit: 'in', 
+                format: 'a4', 
+                orientation: 'landscape' // Formato horizontal ideal para cuadros comparativos
+            }
+        };
+        
+        html2pdf().set(opciones).from(elemento).save();
+    }
+</script>
+</body>
+</html>

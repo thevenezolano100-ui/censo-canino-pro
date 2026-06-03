@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Censo Canino Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
+        .navbar-custom { background: #0d6efd; color: white; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .card-form { border: none; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        #map-registro { height: 350px; border-radius: 12px; border: 2px solid #dee2e6; z-index: 1; width: 100%;}
+        .carousel-item img { height: 350px; object-fit: cover; border-radius: 15px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar-custom">
+    <div class="container d-flex justify-content-between align-items-center flex-wrap">
+        <h3 class="m-0 mb-2 mb-md-0">🐾 Censo Canino <span class="badge bg-light text-primary fs-6">PRO</span></h3>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span class="badge bg-light text-dark me-2">👤 {{ current_user.nombre }} ({{ current_user.rol }})</span>
+            <a href="/mapa_general" class="btn btn-light shadow-sm btn-sm">🗺️ Mapa</a>
+            <a href="/alertas" class="btn btn-danger shadow-sm btn-sm">🔔 Alertas</a>
+            <a href="/citas" class="btn btn-warning shadow-sm btn-sm">📅 Citas</a>
+            <a href="/reportes" class="btn btn-success shadow-sm btn-sm">📊 Reportes</a>
+            <a href="/videos" class="btn btn-info text-white shadow-sm btn-sm">🎬 Videos</a>
+            <a href="/manual" class="btn btn-dark shadow-sm btn-sm">📖 Manual Médico</a>
+            {% if current_user.rol == 'Admin' %}
+            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm bg-purple" style="background: #6f42c1; border: none;">👥 Usuarios</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-outline-light ms-md-3 btn-sm">Salir</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container mb-5">
+    
+    {% if current_user.rol == 'Admin' %}
+    <div class="text-end mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalCarrusel">
+            ⚙️ Configurar Carrusel
+        </button>
+    </div>
+    {% endif %}
+
+    <div id="bannerInstitucional" class="carousel slide shadow-sm mb-4" data-bs-ride="carousel" style="border-radius: 15px; overflow: hidden;">
+      <div class="carousel-inner">
+        {% if carrusel %}
+            {% for foto in carrusel %}
+            <div class="carousel-item {% if loop.first %}active{% endif %}" data-bs-interval="3000">
+              <img src="{{ url_for('static', filename='uploads/' + foto.imagen) }}" class="d-block w-100" alt="Evidencia">
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="carousel-item active">
+              <img src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1200&h=300&q=80" class="d-block w-100" alt="Rescate">
+            </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if current_user.rol == 'Admin' %}
+    <div class="modal fade" id="modalCarrusel" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title">📸 Gestor del Banner Animado</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+              <form method="POST" action="/subir_carrusel" enctype="multipart/form-data" class="mb-4">
+                  <div class="input-group">
+                      <input type="file" name="foto_carrusel" class="form-control" accept="image/*" multiple required>
+                      <button type="submit" class="btn btn-primary">Subir Archivos</button>
+                  </div>
+              </form>
+              <div class="d-flex gap-2 flex-wrap">
+                  {% for foto in carrusel %}
+                  <div class="position-relative d-inline-block">
+                      <img src="{{ url_for('static', filename='uploads/' + foto.imagen) }}" width="120" height="80" style="object-fit: cover; border-radius: 5px; border: 1px solid #ccc;">
+                      <a href="/eliminar_carrusel/{{ foto.id }}" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger text-decoration-none" style="font-size: 14px;" onclick="return confirm('¿Borrar foto?')">❌</a>
+                  </div>
+                  {% endfor %}
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+            {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <div class="col-lg-5">
+            <div class="card card-form p-4 sticky-top" style="top: 20px;">
+                <h4 class="mb-4 text-primary">📝 Registrar / Reportar Canino</h4>
+                <form method="POST" action="/" enctype="multipart/form-data">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6"><input type="text" name="nombre" class="form-control" placeholder="Nombre"></div>
+                        <div class="col-md-6"><input type="text" name="raza" class="form-control" placeholder="Raza / Aspecto" required></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="fw-bold small text-danger">⚠️ Situación Crítica del Animal</label>
+                        <select name="situacion" class="form-select border-danger" required>
+                            <option value="Censo Normal">Censo Normal (Sano / En Casa)</option>
+                            <option value="Situación de Hambre">Situación de Hambre</option>
+                            <option value="Abandono / Callejero">Abandono / Callejero</option>
+                            <option value="En Adopción">Disponible para Adopción</option>
+                            <option value="Herido / Peligro">Herido o Enfermo</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4"><input type="text" name="edad" class="form-control" placeholder="Edad" required></div>
+                        <div class="col-md-4">
+                            <select name="sexo" class="form-select">
+                                <option value="Macho">Macho</option><option value="Hembra">Hembra</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select name="estado_tenencia" class="form-select">
+                                <option value="Con dueño">Con dueño</option><option value="Callejero">Callejero</option>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="text" name="nombre_propietario" class="form-control mb-3" placeholder="Propietario / Dueño">
+                    <div class="row mb-3">
+                        <div class="col-md-6"><input type="text" name="sector" class="form-control" placeholder="Sector/Barrio" required></div>
+                        <div class="col-md-6">
+                            <select name="estado_salud" class="form-select">
+                                <option value="Sano">Sano</option><option value="Enfermo">Enfermo</option><option value="En Tratamiento">En Tratamiento</option>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="file" name="foto" class="form-control mb-3" accept="image/*">
+
+                    <h6 class="mt-4 border-bottom pb-2 text-muted">🩺 Datos Sanitarios Iniciales</h6>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="form-check"><input type="checkbox" name="esterilizado" class="form-check-input"> <label class="small">Esterilizado</label></div>
+                            <div class="form-check"><input type="checkbox" name="desparasitado" class="form-check-input"> <label class="small">Desparasitado</label></div>
+                            <div class="form-check"><input type="checkbox" name="vacuna_parvovirus" class="form-check-input"> <label class="small">Parvovirus</label></div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check"><input type="checkbox" name="vacuna_moquillo" class="form-check-input"> <label class="small">Moquillo</label></div>
+                            <div class="form-check"><input type="checkbox" name="vacuna_triple" class="form-check-input"> <label class="small">Triple</label></div>
+                            <div class="form-check"><input type="checkbox" name="vacuna_sextuple" class="form-check-input"> <label class="small">Sextuple</label></div>
+                        </div>
+                    </div>
+                    <div class="form-check mb-4 p-2 bg-light border rounded">
+                        <input type="checkbox" name="vacuna_antirrabica" class="form-check-input ms-1"> 
+                        <label class="ms-2 text-danger fw-bold small">💉 Vacuna Antirrábica Aplicada</label>
+                    </div>
+
+                    <h6 class="mt-2 border-bottom pb-2">📍 Captura de Ubicación GPS</h6>
+                    <div id="map-registro" class="mb-3"></div>
+                    <input type="hidden" name="latitud" id="latitud" value="0">
+                    <input type="hidden" name="longitud" id="longitud" value="0">
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100 shadow">💾 Guardar Registro</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card card-form p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="m-0">📋 Listado de Caninos</h4>
+                    {% if current_user.rol == 'Admin' %}
+                    <div class="d-flex gap-2">
+                        <a href="/exportar" class="btn btn-outline-success btn-sm">🟢 Excel</a>
+                        <a href="/descargar_pdf" class="btn btn-outline-danger btn-sm">🔴 PDF</a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <form method="GET" action="/" class="d-flex mb-4 gap-2">
+                    <input type="text" name="buscar" class="form-control" placeholder="Buscar..." value="{{ busqueda or '' }}">
+                    <button type="submit" class="btn btn-primary">Buscar</button>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark text-center">
+                            <tr>
+                                <th>Foto</th><th>Animal</th><th>Situación</th><th>Salud</th><th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-center">
+                            {% for perro in caninos.items %}
+                            <tr>
+                                <td>
+                                    {% if perro.foto %}
+                                        <img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" width="45" height="45" class="rounded-circle shadow-sm" style="object-fit: cover;">
+                                    {% else %}
+                                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center m-auto" style="width:45px; height:45px;">🐶</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ perro.nombre or 'S/N' }}</div>
+                                    <div class="small text-muted">{{ perro.sector }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge {% if 'Normal' in perro.situacion %}bg-success{% else %}bg-danger{% endif %}">{{ perro.situacion }}</span>
+                                    <div class="text-muted mt-1" style="font-size: 0.65rem;">Por: {{ perro.reportado_por }}</div>
+                                </td>
+                                <td><span class="badge bg-secondary">{{ perro.estado_salud }}</span></td>
+                                <td>
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm">%</a>
+                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm">🪪</a>
+                                        {% if current_user.rol == 'Admin' %}
+                                        <a href="/editar/{{ perro.id }}" class="btn btn-outline-warning btn-sm">✏️</a>
+                                        <a href="/eliminar/{{ perro.id }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('¿Borrar?')">🗑️</a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="p-4 text-muted">No hay registros cargados.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                {% if caninos.pages > 1 %}
+                <nav class="mt-3">
+                    <ul class="pagination pagination-sm justify-content-center">
+                        <li class="page-item {% if not caninos.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('inicio', page=caninos.prev_num, buscar=busqueda) }}">Ant.</a>
+                        </li>
+                        <li class="page-item active"><span class="page-link">{{ caninos.page }} / {{ caninos.pages }}</span></li>
+                        <li class="page-item {% if not caninos.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{{ url_for('inicio', page=caninos.next_num, buscar=busqueda) }}">Sig.</a>
+                        </li>
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var mapReg = L.map('map-registro').setView([10.4806, -66.9036], 5); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapReg);
+        var markerReg = L.marker([10.4806, -66.9036], {draggable: true}).addTo(mapReg);
+        function updateFields(lat, lon) {
+            document.getElementById('latitud').value = lat;
+            document.getElementById('longitud').value = lon;
+        }
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                var lat = pos.coords.latitude; var lon = pos.coords.longitude;
+                mapReg.setView([lat, lon], 16); markerReg.setLatLng([lat, lon]);
+                updateFields(lat, lon);
+            });
+        }
+        markerReg.on('dragend', function() {
+            var p = markerReg.getLatLng(); updateFields(p.lat, p.lng);
+        });
+        mapReg.on('click', function(e) {
+            markerReg.setLatLng(e.latlng); updateFields(e.latlng.lat, e.latlng.lng);
+        });
+        setTimeout(function(){ mapReg.invalidateSize(); }, 500);
+    });
+</script>
+</body>
+</html>

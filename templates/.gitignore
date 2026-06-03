@@ -1,0 +1,19 @@
+# Entornos virtuales (Omitir carpetas pesadas)
+env/
+venv/
+.env
+
+# Archivos de base de datos locales (¡Seguridad de datos!)
+instance/
+*.db
+*.sqlite3
+
+# Archivos multimedia subidos en local (Para que no pesen en el repositorio)
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Archivos temporales que genera Python automáticamente
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

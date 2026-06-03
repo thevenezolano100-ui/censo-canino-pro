@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Historial Clínico</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary">🩺 Historial Clínico: {{ perro.nombre or 'S/N' }}</h2>
+        <a href="/" class="btn btn-secondary">Volver</a>
+    </div>
+    <div class="row">
+        <div class="col-md-5">
+            <div class="card p-3 shadow-sm border-0 mb-3">
+                <h5>Registrar Consulta</h5>
+                <form method="POST">
+                    <label class="small mt-2">Peso (kg)</label><input type="text" name="peso" class="form-control" required>
+                    <label class="small mt-2">Síntomas</label><textarea name="sintomas" class="form-control" rows="2" required></textarea>
+                    <label class="small mt-2">Diagnóstico</label><textarea name="diagnostico" class="form-control" rows="2" required></textarea>
+                    <label class="small mt-2">Tratamiento</label><textarea name="tratamiento" class="form-control" rows="2" required></textarea>
+                    <button type="submit" class="btn btn-success w-100 mt-3">Guardar Consulta</button>
+                </form>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="card p-3 shadow-sm border-0" style="max-height: 600px; overflow-y: auto;">
+                <h5>Consultas Pasadas</h5>
+                {% for c in perro.consultas|reverse %}
+                <div class="border-bottom py-2 position-relative">
+                    <span class="badge bg-secondary">{{ c.fecha.strftime('%d/%m/%Y') }}</span> <span class="badge bg-info text-dark">{{ c.peso }} kg</span>
+                    <p class="mb-0 mt-1"><b>Sín:</b> {{ c.sintomas }} | <b>Diag:</b> {{ c.diagnostico }}</p>
+                    <p class="mb-1 text-success"><b>Tratamiento:</b> {{ c.tratamiento }}</p>
+                    {% if current_user.rol == 'Admin' %}
+                    <a href="/historial/eliminar/{{ c.id }}" class="btn btn-sm btn-link text-danger p-0" onclick="return confirm('¿Borrar?')">Borrar Registro</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

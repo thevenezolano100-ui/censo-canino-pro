@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Alertas Sanitarias</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-danger">🔔 Sistema de Alertas de Vacunación</h2>
+        <a href="/" class="btn btn-secondary">Volver</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} shadow-sm">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        {% if current_user.rol == 'Admin' %}
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm border-0" style="border-radius:12px;">
+                <h5>Programar Nueva Alerta</h5>
+                <form method="POST">
+                    <label class="form-label small mt-2">Canino</label>
+                    <select name="canino_id" class="form-select" required>
+                        {% for p in perros %}<option value="{{ p.id }}">{{ p.nombre or 'S/N' }}</option>{% endfor %}
+                    </select>
+                    <label class="form-label small mt-2">Vacuna</label>
+                    <select name="tipo" class="form-select">
+                        <option value="Parvovirus Cachorro">Parvovirus Cachorro (21 días)</option>
+                        <option value="Antirrábica Anual">Antirrábica Anual (365 días)</option>
+                    </select>
+                    <label class="form-label small mt-2">Fecha Aplicación</label>
+                    <input type="date" name="fecha_aplicacion" class="form-control" required>
+                    <button type="submit" class="btn btn-danger w-100 mt-3 shadow-sm">Programar</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="col-md-{% if current_user.rol == 'Admin' %}8{% else %}12{% endif %}">
+            <div class="card p-3 shadow-sm border-0" style="border-radius:12px;">
+                <h5>Próximos Vencimientos (30 días)</h5>
+                <table class="table table-hover table-sm mt-2 align-middle text-center">
+                    <thead class="table-dark"><tr><th>Canino</th><th>Vacuna</th><th>Vencimiento</th><th>Gestión</th></tr></thead>
+                    <tbody>
+                        {% for a in alertas %}
+                        <tr class="table-warning">
+                            <td><b>{{ a.paciente.nombre or 'S/N' }}</b></td>
+                            <td>{{ a.tipo }}</td>
+                            <td class="text-danger fw-bold">{{ a.fecha_proxima.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                {% if current_user.rol == 'Admin' %}
+                                <div class="d-flex gap-1 justify-content-center">
+                                    <a href="/alertas/aceptar/{{ a.id }}" class="btn btn-sm btn-success py-0 px-2 shadow-sm">✔ Aceptar</a>
+                                    <a href="/alertas/descartar/{{ a.id }}" class="btn btn-sm btn-danger py-0 px-2 shadow-sm" onclick="return confirm('¿Rechazar alerta?')">✖ Rechazar</a>
+                                </div>
+                                {% else %}
+                                <span class="badge bg-secondary">Vigilado</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted p-3">No hay alertas críticas registradas.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Agenda de Citas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary">📅 Planificación de Citas Clínicas</h2>
+        <a href="/" class="btn btn-secondary">Volver</a>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm border-0" style="border-radius:12px;">
+                <h5>Solicitar / Agendar Nueva Cita</h5>
+                <form method="POST">
+                    <label class="form-label small mt-2">Canino</label>
+                    <select name="canino_id" class="form-select" required>
+                        {% for p in perros %}<option value="{{ p.id }}">{{ p.nombre or 'S/N' }}</option>{% endfor %}
+                    </select>
+                    <label class="form-label small mt-2">Fecha y Hora</label>
+                    <input type="datetime-local" name="fecha_hora" class="form-control" required>
+                    <label class="form-label small mt-2">Motivo</label>
+                    <input type="text" name="motivo" class="form-control" required>
+                    <button type="submit" class="btn btn-primary w-100 mt-3 shadow-sm">Enviar Solicitud</button>
+                </form>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card p-3 shadow-sm border-0" style="border-radius:12px;">
+                <h5>Control y Aprobación de Turnos</h5>
+                <table class="table table-sm align-middle text-center mt-2">
+                    <thead class="table-dark"><tr><th>Paciente</th><th>Fecha</th><th>Motivo</th><th>Estado</th><th>Acciones</th></tr></thead>
+                    <tbody>
+                        {% for c in citas %}
+                        <tr>
+                            <td><b>{{ c.paciente.nombre or 'S/N' }}</b></td>
+                            <td>{{ c.fecha_hora.strftime('%d/%m/%Y - %H:%M') }}</td>
+                            <td>{{ c.motivo }}</td>
+                            <td>
+                                <span class="badge {% if c.estado=='Pendiente' %}bg-warning text-dark{% elif c.estado=='Aceptada' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ c.estado }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if current_user.rol == 'Admin' and c.estado == 'Pendiente' %}
+                                <div class="d-flex gap-1 justify-content-center">
+                                    <a href="/citas/aceptar/{{ c.id }}" class="btn btn-sm btn-success py-0 px-2">✔ Aceptar</a>
+                                    <a href="/citas/rechazar/{{ c.id }}" class="btn btn-sm btn-danger py-0 px-2" onclick="return confirm('¿Rechazar cita?')">✖ Rechazar</a>
+                                </div>
+                                {% else %}
+                                <span class="small text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
