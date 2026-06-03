@@ -349,5 +349,34 @@ def rescate(id):
         enviar_notificacion(asunto, mensaje)
         return jsonify({"status": "exito"})
     return render_template('rescate.html', perro=p)
+# ==========================================
+# RUTAS DE CARNET E HISTORIAL
+# ==========================================
+
+@app.route('/carnet/<int:id>')
+@login_required
+def carnet(id): 
+    perro_encontrado = Canino.query.get_or_404(id)
+    return render_template('carnet.html', perro=perro_encontrado)
+
+@app.route('/historial/<int:id>', methods=['GET', 'POST'])
+@login_required
+def historial(id):
+    p = Canino.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        nueva_consulta = Consulta(
+            peso=request.form.get('peso'), 
+            sintomas=request.form.get('sintomas'), 
+            diagnostico=request.form.get('diagnostico'), 
+            tratamiento=request.form.get('tratamiento'), 
+            canino_id=p.id
+        )
+        db.session.add(nueva_consulta)
+        db.session.commit()
+        flash('Consulta médica guardada correctamente.', 'success')
+        return redirect(url_for('historial', id=p.id))
+        
+    return render_template('historial.html', perro=p)
 
 if __name__ == '__main__': app.run(debug=True)
