@@ -3,64 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Perfil de Rescate - {{ perro.nombre }}</title>
+    <title>S.O.S Rescate - {{ perro.nombre or 'Canino' }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; text-align: center; padding-top: 40px; font-family: 'Segoe UI', sans-serif;}
+        .foto-perro { width: 160px; height: 160px; object-fit: cover; border-radius: 50%; border: 5px solid #dc3545; margin-bottom: 20px;}
+        .card-rescate { max-width: 400px; margin: auto; border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); padding: 30px;}
+    </style>
 </head>
-<body class="bg-light text-center p-4">
+<body>
 
-    <h2 class="text-danger mb-4">¡Hola! Soy {{ perro.nombre }} 🐾</h2>
+<div class="container mb-5">
+    <div class="card card-rescate bg-white">
+        <h2 class="text-danger fw-bold mb-3">¡He encontrado a <br>{{ perro.nombre or 'este perrito' }}!</h2>
+        
+        {% if perro.foto %}
+            <img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" class="foto-perro shadow-sm">
+        {% else %}
+            <div class="foto-perro d-flex align-items-center justify-content-center bg-light mx-auto mb-3 shadow-sm" style="font-size: 4rem;">🐶</div>
+        {% endif %}
 
-    {% if perro.foto %}
-        <img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" class="rounded-circle shadow mb-4" width="180" height="180" style="object-fit: cover; border: 5px solid #dc3545;">
-    {% else %}
-        <div style="font-size: 5rem;">🐶</div>
-    {% endif %}
+        <p class="text-muted" style="font-size: 1.1rem;">
+            Por favor, ayúdanos a que vuelva seguro a casa o reciba atención médica. Presiona el botón rojo de abajo para enviarnos su ubicación GPS actual en tiempo real.
+        </p>
 
-    <p class="lead fw-bold">Si me encontraste caminando solo, por favor ayúdame.</p>
-    <p>Soy parte del Censo Canino. Mi propietario registrado es: <strong>{{ perro.nombre_propietario }}</strong></p>
+        <button id="btn-ubicacion" class="btn btn-danger btn-lg w-100 shadow mt-3 fw-bold py-3" style="border-radius: 12px; font-size: 1.2rem;">
+            📍 Enviar Ubicación Exacta
+        </button>
+        
+        <div id="mensaje" class="mt-4"></div>
+        
+        {% if perro.nombre_propietario %}
+        <hr class="mt-4">
+        <p class="small text-muted mb-0">Este animal pertenece a: <b>{{ perro.nombre_propietario }}</b></p>
+        {% endif %}
+    </div>
+</div>
 
-    <!-- Este botón activa el GPS -->
-    <button id="btn-ubicacion" class="btn btn-danger btn-lg mt-3 w-100 shadow rounded-pill">
-        📍 Enviar mi Ubicación Actual
-    </button>
+<script>
+    document.getElementById('btn-ubicacion').addEventListener('click', function() {
+        var btn = this;
+        var msj = document.getElementById('mensaje');
+        
+        btn.innerHTML = '⏳ Obteniendo GPS...';
+        btn.disabled = true;
 
-    <div id="mensaje" class="mt-4 fw-bold text-success fs-5"></div>
+        if (navigator.geolocation) {
+            // Pedimos permiso al usuario para usar su ubicación
+            navigator.geolocation.getCurrentPosition(function(pos) {
+                var lat = pos.coords.latitude;
+                var lon = pos.coords.longitude;
 
-    <!-- Lógica de Geolocalización -->
-    <script>
-        document.getElementById('btn-ubicacion').addEventListener('click', function() {
-            const btn = this;
-            const mensaje = document.getElementById('mensaje');
-
-            btn.innerText = "Calculando GPS...";
-            btn.disabled = true;
-
-            // Preguntamos al navegador por el GPS
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-
-                    // Enviamos las coordenadas a la ruta de Flask que creamos en el Paso 1
-                    fetch('/rescate/{{ perro.id }}', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ lat: lat, lon: lon })
-                    }).then(res => res.json())
-                      .then(data => {
-                          mensaje.innerText = "¡Mil gracias! La ubicación exacta ha sido enviada a la base de datos central.";
-                          btn.style.display = 'none'; // Ocultamos el botón
-                      });
-                }, function(error) {
-                    mensaje.className = "mt-4 fw-bold text-danger";
-                    mensaje.innerText = "Para enviar la ubicación, debes darle a 'Permitir' en el aviso de GPS de tu celular.";
-                    btn.innerText = "📍 Reintentar";
-                    btn.disabled = false;
+                // Enviamos las coordenadas silenciosamente al servidor Python (app.py)
+                fetch('/rescate/{{ perro.id }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lat: lat, lon: lon })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if(data.status === 'exito') {
+                        btn.classList.replace('btn-danger', 'btn-success');
+                        btn.innerHTML = '✅ Ubicación Enviada';
+                        msj.innerHTML = '<div class="alert alert-success fw-bold">¡Gracias por tu ayuda! El equipo de rescate ha recibido las coordenadas exactas y ha sido notificado.</div>';
+                    }
+                })
+                .catch(error => {
+                    btn.innerHTML = '❌ Error de red';
+                    msj.innerHTML = '<div class="alert alert-danger">Hubo un error de conexión enviando los datos. Intenta nuevamente.</div>';
                 });
-            } else {
-                mensaje.innerText = "El navegador de este celular no soporta GPS.";
-            }
-        });
-    </script>
+
+            }, function(error) {
+                btn.innerHTML = '📍 Enviar Ubicación Exacta';
+                btn.disabled = false;
+                msj.innerHTML = '<div class="alert alert-warning">⚠️ Debes darle a "Permitir" en la ventana de ubicación de tu navegador para poder enviar la alerta.</div>';
+            }, {
+                enableHighAccuracy: true // Fuerza al celular a usar el chip GPS real
+            });
+        } else {
+            msj.innerHTML = '<div class="alert alert-danger">Tu dispositivo o navegador no soporta geolocalización.</div>';
+        }
+    });
+</script>
 </body>
 </html>

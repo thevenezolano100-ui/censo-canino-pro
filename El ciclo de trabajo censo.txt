@@ -1,0 +1,8 @@
+El ciclo de trabajo de ahora en adelante 🚀
+De ahora en adelante, tu vida como programador será hermosa. Cuando hagas un cambio en tu computadora y quieras subirlo a internet, los pasos serán:
+
+En tu computadora: git add ., luego git commit -m "Mi cambio", y luego git push.
+
+En PythonAnywhere (Consola): Solo escribes git pull origin main.
+
+En PythonAnywhere (Web): Le das al botón verde Reload.
