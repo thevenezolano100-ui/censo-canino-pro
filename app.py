@@ -18,7 +18,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Base de datos v8 blindada para Inventario y Censo
+# Base de datos v8 blindada para Inventario, Consultas y Censo
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///censo_v8.db' 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -70,7 +70,6 @@ class Consulta(db.Model):
     peso = db.Column(db.String(20))
     sintomas = db.Column(db.Text)
     diagnostico = db.Column(db.Text)
-    treatment = db.Column(db.Text)  # tratamiento corregido internamente
     tratamiento = db.Column(db.Text)
     canino_id = db.Column(db.Integer, db.ForeignKey('canino.id'), nullable=False)
 
@@ -164,7 +163,7 @@ def sincronizar_offline():
         db.session.rollback(); return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # ==========================================
-# RUTAS DE ACCESO Y SEGURIDAD (CORREGIDO)
+# RUTAS DE ACCESO Y SEGURIDAD 
 # ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
@@ -319,7 +318,7 @@ def eliminar_consulta(id):
     c = Consulta.query.get_or_404(id); c_id = c.canino_id; db.session.delete(c); db.session.commit(); return redirect(url_for('historial', id=c_id))
 
 # ==========================================
-# ROLES, ALERTAS, CITAS Y REPORTES
+# ROLES, ALERTAS Y CITAS
 # ==========================================
 @app.route('/usuarios')
 @login_required
@@ -336,7 +335,7 @@ def cambiar_clave_usuario(id):
 
 @app.route('/alertas', methods=['GET', 'POST'])
 @login_required
-def alertas():
+def alerts():
     hoy = date.today()
     if request.method == 'POST':
         t = request.form.get('tipo'); can_id = request.form.get('canino_id'); f_ap = datetime.strptime(request.form.get('fecha_aplicacion'), '%Y-%m-%d').date()
@@ -372,6 +371,9 @@ def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.s
 @login_required
 def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
 
+# ==========================================
+# MULTIMEDIA Y DOCUMENTOS
+# ==========================================
 @app.route('/subir_carrusel', methods=['POST'])
 @login_required
 def subir_carrusel():
@@ -413,12 +415,9 @@ def subir_manual():
         db.session.add(ManualDoc(archivo=nom)); db.session.commit()
     return redirect(url_for('manual'))
 
-@app.route('/reportes')
-@login_required
-def reportes():
-    v_c = [Canino.query.filter_by(vacuna_parvovirus=True).count(), Canino.query.filter_by(vacuna_moquillo=True).count(), Canino.query.filter_by(vacuna_triple=True).count(), Canino.query.filter_by(vacuna_sextuple=True).count(), Canino.query.filter_by(vacuna_antirrabica=True).count()]
-    return render_template('reportes.html', total_perros=Canino.query.count(), total_consultas=Consulta.query.count(), total_citas=Cita.query.count(), macho_count=Canino.query.filter_by(sexo='Macho').count(), hembra_count=Canino.query.filter_by(sexo='Hembra').count(), sano_count=Canino.query.filter_by(estado_salud='Sano').count(), enfermo_count=Canino.query.filter_by(estado_salud='Enfermo').count(), tratamiento_count=Canino.query.filter_by(estado_salud='En Tratamiento').count(), vacunas_labels=['Parvovirus', 'Moquillo', 'Triple', 'Sextuple', 'Antirrábica'], vacunas_counts=v_c, citas_pendientes=Cita.query.filter_by(estado='Pendiente').count(), citas_completadas=Cita.query.filter_by(estado='Aceptada').count())
-
+# ==========================================
+# EXPORTACIÓN Y MAPA
+# ==========================================
 @app.route('/exportar')
 @login_required
 def exportar():
@@ -446,5 +445,34 @@ def rescate(id):
         datos = request.get_json(); p.latitud = datos.get('lat'); p.longitud = datos.get('lon'); p.situacion = '¡ALERTA QR!'; db.session.commit()
         return jsonify({"status": "exito"})
     return render_template('rescate.html', perro=p)
+
+# ============================================================
+# MÓDULO DE REPORTES VISUALES COMPLETO (CORREGIDO DE RAÍZ 🛠️)
+# ============================================================
+@app.route('/reportes')
+@login_required
+def reportes():
+    # Cálculo exacto de la cobertura de vacunación
+    v_c = [
+        Canino.query.filter_by(vacuna_parvovirus=True).count(),
+        Canino.query.filter_by(vacuna_moquillo=True).count(),
+        Canino.query.filter_by(vacuna_triple=True).count(),
+        Canino.query.filter_by(vacuna_sextuple=True).count(),
+        Canino.query.filter_by(vacuna_antirrabica=True).count()
+    ]
+    
+    # Retornamos todas las variables requeridas por Chart.js de forma obligatoria
+    return render_template('reportes.html', 
+        total_perros=Canino.query.count(),
+        total_consultas=Consulta.query.count(),
+        citas_pendientes=Cita.query.filter_by(estado='Pendiente').count(),
+        sano_count=Canino.query.filter_by(estado_salud='Sano').count(),
+        enfermo_count=Canino.query.filter_by(estado_salud='Enfermo').count(),
+        tratamiento_count=Canino.query.filter_by(estado_salud='En Tratamiento').count(),
+        macho_count=Canino.query.filter_by(sexo='Macho').count(),
+        hembra_count=Canino.query.filter_by(sexo='Hembra').count(),
+        vacunas_labels=['Parvovirus', 'Moquillo', 'Triple', 'Sextuple', 'Antirrábica'],
+        vacunas_counts=v_c
+    )
 
 if __name__ == '__main__': app.run(debug=True)
