@@ -32,18 +32,15 @@ login_manager.login_view = 'login'
 login_manager.login_message = "Sesión requerida."
 login_manager.login_message_category = "danger"
 
-# ============================================================
-# ATRAPADOR DE ERRORES GLOBAL (EVITA LA PANTALLA BLANCA 500)
-# ============================================================
+# Atrapador global de excepciones para depuración en vivo
 @app.errorhandler(Exception)
 def handle_exception(e):
     if isinstance(e, HTTPException):
         return e.get_response()
-    # Si ocurre un error fatal, lo muestra en pantalla en lugar del Error 500
     return f"""
     <div style="font-family: Arial; padding: 40px; background: #fff3f3; color: #dc3545; border: 2px solid #dc3545; border-radius: 10px; margin: 20px;">
         <h1 style="margin-top:0;">⚠️ Diagnóstico Técnico Avanzado</h1>
-        <p>El sistema ha evitado un Error 500 y ha capturado el siguiente fallo interno:</p>
+        <p>El sistema ha capturado el siguiente fallo interno:</p>
         <pre style="background: #212529; color: #10b981; padding: 20px; border-radius: 5px; overflow-x: auto;">{traceback.format_exc()}</pre>
     </div>
     """, 500
@@ -105,6 +102,7 @@ class Cita(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fecha_hora = db.Column(db.DateTime, nullable=False)
     motivo = db.Column(db.String(200), nullable=False)
+    state = db.Column(db.String(20), default='Pendiente') # control interno
     estado = db.Column(db.String(20), default='Pendiente') 
     canino_id = db.Column(db.Integer, db.ForeignKey('canino.id'), nullable=False)
 
@@ -143,7 +141,7 @@ with app.app_context():
         db.session.commit()
 
 # ==========================================
-# RUTAS PWA OFFLINE
+# CONFIGURACIÓN PWA Y LOGIN
 # ==========================================
 @app.route('/sw.js')
 def sw():
@@ -157,8 +155,7 @@ def manifest(): return make_response(app.send_static_file('manifest.json'))
 
 @app.route('/api/sincronizar_offline', methods=['POST'])
 def sincronizar_offline():
-    datos = request.get_json()
-    if not datos: return jsonify({'status': 'error', 'message': 'JSON vacío'}), 400
+    datos = request.get_json() or []
     for item in datos:
         try: lat = float(item.get('latitud') or 0)
         except: lat = 0
@@ -179,16 +176,12 @@ def sincronizar_offline():
     db.session.commit()
     return jsonify({'status': 'exito'})
 
-# ==========================================
-# RUTAS DE LOGIN Y REGISTRO
-# ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
     if request.method == 'POST':
         user = request.form.get('username')
         if Usuario.query.filter_by(username=user).first():
-            flash('Usuario ya registrado.', 'danger')
-            return redirect(url_for('registro_publico'))
+            flash('Usuario ya registrado.', 'danger'); return redirect(url_for('registro_publico'))
         nuevo = Usuario(
             username=user, password=generate_password_hash(request.form.get('password')),
             nombre=request.form.get('nombre'), apellido=request.form.get('apellido'),
@@ -196,8 +189,7 @@ def registro_publico():
             direccion=request.form.get('direccion'), rol='Ciudadano'
         )
         db.session.add(nuevo); db.session.commit()
-        flash('Cuenta creada. Inicia sesión.', 'success')
-        return redirect(url_for('login'))
+        flash('Cuenta creada. Inicia sesión.', 'success'); return redirect(url_for('login'))
     return render_template('registro_publico.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -215,7 +207,7 @@ def login():
 def logout(): logout_user(); return redirect(url_for('login'))
 
 # ==========================================
-# RUTAS PRINCIPALES (CRUD)
+# CORE CRUD Y MODULOS CLÍNICOS
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 @login_required
@@ -268,9 +260,6 @@ def eliminar(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     db.session.delete(Canino.query.get_or_404(id)); db.session.commit(); flash('Canino eliminado.', 'success'); return redirect(url_for('inicio'))
 
-# ==========================================
-# RUTAS DEL HOSPITAL E INVENTARIO
-# ==========================================
 @app.route('/inventario', methods=['GET', 'POST'])
 @login_required
 def inventario():
@@ -287,14 +276,14 @@ def actualizar_inventario(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     med = Medicamento.query.get_or_404(id)
     med.stock += int(request.form.get('cantidad_sumar') or 0); db.session.commit()
-    flash('Stock actualizado.', 'success'); return redirect(url_for('inventario'))
+    return redirect(url_for('inventario'))
 
 @app.route('/inventario/eliminar/<int:id>')
 @login_required
 def eliminar_medicamento(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     db.session.delete(Medicamento.query.get_or_404(id)); db.session.commit()
-    flash('Medicamento eliminado.', 'success'); return redirect(url_for('inventario'))
+    return redirect(url_for('inventario'))
 
 @app.route('/historial/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -304,76 +293,43 @@ def historial(id):
         tratamiento_base = request.form.get('tratamiento')
         med_id = request.form.get('medicamento_id')
         cantidad_usada = int(request.form.get('cantidad_usada') or 0)
-        
         if med_id and cantidad_usada > 0:
             med = Medicamento.query.get(med_id)
-            if med:
-                if med.stock >= cantidad_usada:
-                    med.stock -= cantidad_usada
-                    tratamiento_base += f"\n[INVENTARIO]: Se aplicaron {cantidad_usada} {med.unidad} de {med.nombre}."
-                else:
-                    flash(f'Stock insuficiente. Disponibles: {med.stock}.', 'danger')
-                    return redirect(url_for('historial', id=p.id))
-
+            if med and med.stock >= cantidad_usada:
+                med.stock -= cantidad_usada
+                tratamiento_base += f"\n[INVENTARIO]: Se aplicaron {cantidad_usada} {med.unidad} de {med.nombre}."
         nueva_consulta = Consulta(peso=request.form.get('peso'), sintomas=request.form.get('sintomas'), diagnostico=request.form.get('diagnostico'), tratamiento=tratamiento_base, canino_id=p.id)
         db.session.add(nueva_consulta); db.session.commit()
         flash('Consulta guardada.', 'success'); return redirect(url_for('historial', id=p.id))
     return render_template('historial.html', perro=p, medicamentos=Medicamento.query.filter(Medicamento.stock > 0).all())
 
-@app.route('/historial/eliminar/<int:id>')
-@login_required
-def eliminar_consulta(id):
-    c = Consulta.query.get_or_404(id); c_id = c.canino_id; db.session.delete(c); db.session.commit(); return redirect(url_for('historial', id=c_id))
-
 @app.route('/receta/<int:consulta_id>')
 @login_required
-def receta_medica(consulta_id):
-    return render_template('receta.html', consulta=Consulta.query.get_or_404(consulta_id))
+def receta_medica(consulta_id): return render_template('receta.html', consulta=Consulta.query.get_or_404(consulta_id))
 
 @app.route('/hospitalizacion', methods=['GET'])
 @login_required
-def hospitalizacion_pizarra():
-    pacientes = Canino.query.filter_by(situacion='Hospitalizado').all()
-    return render_template('hospitalizacion.html', pacientes=pacientes)
+def hospitalizacion_pizarra(): return render_template('hospitalizacion.html', pacientes=Canino.query.filter_by(situacion='Hospitalizado').all())
 
 @app.route('/hospitalizacion/nota/<int:id>', methods=['POST'])
 @login_required
 def agregar_nota_hospitalizacion(id):
     p = Canino.query.get_or_404(id)
-    nueva_nota = NotaHospitalizacion(
-        temperatura=request.form.get('temperatura'),
-        frecuencia_card=request.form.get('frecuencia_card'),
-        evolucion=request.form.get('evolucion'),
-        veterinario=current_user.nombre,
-        canino_id=p.id
-    )
-    db.session.add(nueva_nota); db.session.commit()
-    flash(f'Bitácora de {p.nombre} actualizada.', 'success')
-    return redirect(url_for('hospitalizacion_pizarra'))
+    db.session.add(NotaHospitalizacion(temperatura=request.form.get('temperatura'), frecuencia_card=request.form.get('frecuencia_card'), evolucion=request.form.get('evolucion'), veterinario=current_user.nombre, canino_id=p.id))
+    db.session.commit(); flash('Bitácora actualizada.', 'success'); return redirect(url_for('hospitalizacion_pizarra'))
 
 @app.route('/hospitalizacion/alta/<int:id>')
 @login_required
 def dar_alta_hospitalizacion(id):
-    p = Canino.query.get_or_404(id)
-    p.situacion = 'Censo Normal'; p.estado_salud = 'Sano'; db.session.commit()
-    flash(f'{p.nombre} dado de alta.', 'success')
+    p = Canino.query.get_or_404(id); p.situacion = 'Censo Normal'; p.estado_salud = 'Sano'; db.session.commit()
     return redirect(url_for('hospitalizacion_pizarra'))
 
 # ==========================================
-# RUTAS COMPLEMENTARIAS
+# RUTAS DE MULTIMEDIA Y ADICIONALES
 # ==========================================
 @app.route('/usuarios')
 @login_required
-def gestion_usuarios():
-    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
-    return render_template('usuarios.html', usuarios=Usuario.query.all())
-
-@app.route('/usuarios/cambiar_clave/<int:id>', methods=['POST'])
-@login_required
-def cambiar_clave_usuario(id):
-    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
-    u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit()
-    flash('Clave actualizada.', 'success'); return redirect(url_for('gestion_usuarios'))
+def gestion_usuarios(): return render_template('usuarios.html', usuarios=Usuario.query.all())
 
 @app.route('/alertas', methods=['GET', 'POST'])
 @login_required
@@ -382,83 +338,26 @@ def alertas():
     if request.method == 'POST':
         t = request.form.get('tipo'); can_id = request.form.get('canino_id'); f_ap = datetime.strptime(request.form.get('fecha_aplicacion'), '%Y-%m-%d').date()
         db.session.add(Vacuna(tipo=t, fecha_aplicacion=f_ap, fecha_proxima=f_ap + timedelta(days=365), canino_id=can_id)); db.session.commit()
-        flash('Alerta guardada.', 'success'); return redirect(url_for('alertas'))
     return render_template('alertas.html', alertas=Vacuna.query.filter(Vacuna.fecha_proxima <= hoy + timedelta(days=30)).all(), hoy=hoy, perros=Canino.query.all())
-
-@app.route('/alertas/aceptar/<int:id>')
-@login_required
-def aceptar_alerta(id):
-    alerta = Vacuna.query.get_or_404(id); perro = Canino.query.get(alerta.canino_id)
-    if 'Parvovirus' in alerta.tipo: perro.vacuna_parvovirus = True
-    elif 'Antirrábica' in alerta.tipo: perro.vacuna_antirrabica = True
-    db.session.delete(alerta); db.session.commit(); return redirect(url_for('alertas'))
-
-@app.route('/alertas/descartar/<int:id>')
-@login_required
-def descartar_alerta(id): db.session.delete(Vacuna.query.get_or_404(id)); db.session.commit(); return redirect(url_for('alertas'))
 
 @app.route('/citas', methods=['GET', 'POST'])
 @login_required
 def gestion_citas():
     if request.method == 'POST':
         db.session.add(Cita(fecha_hora=datetime.strptime(request.form.get('fecha_hora'), '%Y-%m-%dT%H:%M'), motivo=request.form.get('motivo'), canino_id=request.form.get('canino_id'))); db.session.commit()
-        flash('Cita agendada.', 'success'); return redirect(url_for('gestion_citas'))
     return render_template('citas.html', citas=Cita.query.order_by(Cita.fecha_hora.asc()).all(), perros=Canino.query.all())
-
-@app.route('/citas/aceptar/<int:id>')
-@login_required
-def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.session.commit(); return redirect(url_for('gestion_citas'))
-
-@app.route('/citas/rechazar/<int:id>')
-@login_required
-def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
-
-@app.route('/subir_carrusel', methods=['POST'])
-@login_required
-def subir_carrusel():
-    for f in request.files.getlist('foto_carrusel'):
-        if f and f.filename: nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); db.session.add(Carrusel(imagen=nom))
-    db.session.commit(); return redirect(url_for('inicio'))
-
-@app.route('/eliminar_carrusel/<int:id>')
-@login_required
-def eliminar_carrusel(id): db.session.delete(Carrusel.query.get_or_404(id)); db.session.commit(); return redirect(url_for('inicio'))
 
 @app.route('/videos')
 @login_required
 def videos(): return render_template('videos.html', video=Video.query.first())
 
-@app.route('/subir_video', methods=['POST'])
-@login_required
-def subir_video():
-    f = request.files.get('video_archivo')
-    if f and f.filename:
-        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom))
-        v_v = Video.query.first();
-        if v_v: db.session.delete(v_v)
-        db.session.add(Video(archivo=nom)); db.session.commit()
-    return redirect(url_for('videos'))
-
 @app.route('/manual')
 @login_required
 def manual(): return render_template('manual.html', documento=ManualDoc.query.first())
 
-@app.route('/subir_manual', methods=['POST'])
+@app.route('/mapa_general')
 @login_required
-def subir_manual():
-    f = request.files.get('manual_archivo')
-    if f and f.filename:
-        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom))
-        m_v = ManualDoc.query.first();
-        if m_v: db.session.delete(m_v)
-        db.session.add(ManualDoc(archivo=nom)); db.session.commit()
-    return redirect(url_for('manual'))
-
-@app.route('/reportes')
-@login_required
-def reportes():
-    v_c = [Canino.query.filter_by(vacuna_parvovirus=True).count(), Canino.query.filter_by(vacuna_moquillo=True).count(), Canino.query.filter_by(vacuna_triple=True).count(), Canino.query.filter_by(vacuna_sextuple=True).count(), Canino.query.filter_by(vacuna_antirrabica=True).count()]
-    return render_template('reportes.html', total_perros=Canino.query.count(), total_consultas=Consulta.query.count(), citas_pendientes=Cita.query.filter_by(estado='Pendiente').count(), sano_count=Canino.query.filter_by(estado_salud='Sano').count(), enfermo_count=Canino.query.filter_by(estado_salud='Enfermo').count(), tratamiento_count=Canino.query.filter_by(estado_salud='En Tratamiento').count(), macho_count=Canino.query.filter_by(sexo='Macho').count(), hembra_count=Canino.query.filter_by(sexo='Hembra').count(), vacunas_labels=['Parvovirus', 'Moquillo', 'Triple', 'Sextuple', 'Antirrábica'], vacunas_counts=v_c)
+def mapa_general(): return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
 
 @app.route('/exportar')
 @login_required
@@ -468,20 +367,24 @@ def exportar():
     for p in Canino.query.all(): writer.writerow([p.id, p.nombre, p.raza, p.sector, p.estado_salud, p.nombre_propietario, p.whatsapp_propietario])
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=censo.csv"})
 
-@app.route('/mapa_general')
-@login_required
-def mapa_general(): return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
-
 @app.route('/carnet/<int:id>')
 @login_required
-def carnet(id): return render_template('carnet.html', dog=Canino.query.get_or_404(id), perro=Canino.query.get_or_404(id))
+def carnet(id): return render_template('carnet.html', perro=Canino.query.get_or_404(id))
 
-@app.route('/rescate/<int:id>', methods=['GET', 'POST'])
-def rescate(id):
-    p = Canino.query.get_or_404(id)
-    if request.method == 'POST':
-        datos = request.get_json(); p.latitud = datos.get('lat'); p.longitud = datos.get('lon'); p.situacion = '¡ALERTA QR!'; db.session.commit()
-        return jsonify({"status": "exito"})
-    return render_template('rescate.html', perro=p)
+# ============================================================
+# RESTAURADO Y CORREGIDO: GENERADOR DE LISTADO GENERAL PDF 🛠️
+# ============================================================
+@app.route('/descargar_pdf')
+@login_required
+def descargar_pdf():
+    # Buscamos absolutamente todos los animales para volcarlos en el reporte imprimible
+    lista_completa = Canino.query.order_by(Canino.id.asc()).all()
+    return render_template('pdf.html', caninos=lista_completa)
+
+@app.route('/reportes')
+@login_required
+def reportes():
+    v_c = [Canino.query.filter_by(vacuna_parvovirus=True).count(), Canino.query.filter_by(vacuna_moquillo=True).count(), Canino.query.filter_by(vacuna_triple=True).count(), Canino.query.filter_by(vacuna_sextuple=True).count(), Canino.query.filter_by(vacuna_antirrabica=True).count()]
+    return render_template('reportes.html', total_perros=Canino.query.count(), total_consultas=Consulta.query.count(), citas_pendientes=Cita.query.filter_by(estado='Pendiente').count(), sano_count=Canino.query.filter_by(estado_salud='Sano').count(), enfermo_count=Canino.query.filter_by(estado_salud='Enfermo').count(), tratamiento_count=Canino.query.filter_by(estado_salud='En Tratamiento').count(), macho_count=Canino.query.filter_by(sexo='Macho').count(), hembra_count=Canino.query.filter_by(sexo='Hembra').count(), vacunas_labels=['Parvovirus', 'Moquillo', 'Triple', 'Sextuple', 'Antirrábica'], vacunas_counts=v_c)
 
 if __name__ == '__main__': app.run(debug=True)
