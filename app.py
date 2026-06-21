@@ -13,13 +13,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_censo_master_v9'
 
-# Configuración de Ruta Absoluta para Uploads de Fotografías
+# Configuración de Rutas Absolutas (SOLUCIÓN AL ERROR 500)
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Base de datos v9 blindada con soporte de Hospitalización
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///censo_v9.db' 
+# Base de datos v9 con Ruta Absoluta para evitar colapsos en PythonAnywhere
+db_path = os.path.join(BASE_DIR, 'censo_v9.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -73,13 +74,12 @@ class Consulta(db.Model):
     tratamiento = db.Column(db.Text)
     canino_id = db.Column(db.Integer, db.ForeignKey('canino.id'), nullable=False)
 
-# NUEVO: Tabla para las bitácoras diarias de Hospitalización
 class NotaHospitalizacion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
-    temperatura = db.Column(db.String(20)) # ej: 38.5 C
-    frecuencia_card = db.Column(db.String(20)) # ej: 110 lpm
-    evolucion = db.Column(db.Text, nullable=False) # Notas médicas del turno
+    temperatura = db.Column(db.String(20)) 
+    frecuencia_card = db.Column(db.String(20)) 
+    evolucion = db.Column(db.Text, nullable=False) 
     veterinario = db.Column(db.String(100))
     canino_id = db.Column(db.Integer, db.ForeignKey('canino.id'), nullable=False)
 
@@ -112,7 +112,7 @@ class Canino(db.Model):
     situacion = db.Column(db.String(100), default='Censo Normal')
     reportado_por = db.Column(db.String(100))
     
-    cubiculo_jaula = db.Column(db.String(50), default="N/A") # NUEVO CAMPO HOSPITALIZACIÓN
+    cubiculo_jaula = db.Column(db.String(50), default="N/A") 
     
     esterilizado = db.Column(db.Boolean, default=False); desparasitado = db.Column(db.Boolean, default=False)
     vacuna_parvovirus = db.Column(db.Boolean, default=False); vacuna_moquillo = db.Column(db.Boolean, default=False)
@@ -124,6 +124,15 @@ with app.app_context():
     if not Usuario.query.filter_by(username='admin').first():
         db.session.add(Usuario(username='admin', password=generate_password_hash('admin123'), rol='Admin', nombre='Administrador Principal', apellido='Censo', cedula='0000', whatsapp='0000', direccion='Sede Sinergia'))
         db.session.commit()
+
+def enviar_notificacion(asunto, mensaje_texto):
+    try:
+        msg = MIMEText(mensaje_texto)
+        msg['Subject'] = asunto; msg['From'] = app.config['MAIL_USERNAME']; msg['To'] = app.config['MAIL_USERNAME']
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+            server.send_message(msg)
+    except Exception as e: print(f"Notificación omitida: {e}")
 
 # ==========================================
 # CONFIGURACIÓN PWA Y OFFLINE
@@ -330,12 +339,11 @@ def receta_medica(consulta_id):
     return render_template('receta.html', consulta=consulta)
 
 # ============================================================
-# NUEVO: MÓDULO DE HOSPITALIZACIÓN Y BITÁCORAS CRÍTICAS (v9.0)
+# MÓDULO DE HOSPITALIZACIÓN Y BITÁCORAS CRÍTICAS 
 # ============================================================
 @app.route('/hospitalizacion', methods=['GET'])
 @login_required
 def hospitalizacion_pizarra():
-    # Filtramos únicamente los perritos que estén marcados como Hospitalizados
     pacientes = Canino.query.filter_by(situacion='Hospitalizado').all()
     return render_template('hospitalizacion.html', pacientes=pacientes)
 
@@ -352,17 +360,17 @@ def agregar_nota_hospitalizacion(id):
     )
     db.session.add(nueva_nota)
     db.session.commit()
-    flash(f'Bitácora clínica de {p.nombre or "Paciente"} actualizada con éxito.', 'success')
+    flash(f'Bitácora clínica de {p.nombre or "Paciente"} actualizada.', 'success')
     return redirect(url_for('hospitalizacion_pizarra'))
 
 @app.route('/hospitalizacion/alta/<int:id>')
 @login_required
 def dar_alta_hospitalizacion(id):
     p = Canino.query.get_or_404(id)
-    p.situacion = 'Censo Normal' # Lo regresamos al estado normal del censo
+    p.situacion = 'Censo Normal'
     p.estado_salud = 'Sano'
     db.session.commit()
-    flash(f'{p.nombre or "El paciente"} ha sido dado de alta médica.', 'success')
+    flash(f'{p.nombre or "El paciente"} dado de alta médica.', 'success')
     return redirect(url_for('hospitalizacion_pizarra'))
 
 # ==========================================
@@ -374,15 +382,91 @@ def gestion_usuarios():
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     return render_template('usuarios.html', usuarios=Usuario.query.all())
 
-@app.route('/alertas')
+@app.route('/usuarios/cambiar_clave/<int:id>', methods=['POST'])
+@login_required
+def cambiar_clave_usuario(id):
+    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
+    u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit()
+    flash(f'Clave de {u.username} actualizada.', 'success'); return redirect(url_for('gestion_usuarios'))
+
+@app.route('/alertas', methods=['GET', 'POST'])
 @login_required
 def alertas():
-    return render_template('alertas.html', alertas=Vacuna.query.all(), hoy=date.today(), perros=Canino.query.all())
+    hoy = date.today()
+    if request.method == 'POST':
+        t = request.form.get('tipo'); can_id = request.form.get('canino_id'); f_ap = datetime.strptime(request.form.get('fecha_aplicacion'), '%Y-%m-%d').date()
+        db.session.add(Vacuna(tipo=t, fecha_aplicacion=f_ap, fecha_proxima=f_ap + timedelta(days=365), canino_id=can_id)); db.session.commit()
+        flash('Alerta programada.', 'success'); return redirect(url_for('alertas'))
+    return render_template('alertas.html', alertas=Vacuna.query.filter(Vacuna.fecha_proxima <= hoy + timedelta(days=30)).all(), hoy=hoy, perros=Canino.query.all())
 
-@app.route('/citas')
+@app.route('/alertas/aceptar/<int:id>')
+@login_required
+def aceptar_alerta(id):
+    alerta = Vacuna.query.get_or_404(id); perro = Canino.query.get(alerta.canino_id)
+    if 'Parvovirus' in alerta.tipo: perro.vacuna_parvovirus = True
+    elif 'Antirrábica' in alerta.tipo: perro.vacuna_antirrabica = True
+    db.session.delete(alerta); db.session.commit(); flash('Alerta procesada.', 'success'); return redirect(url_for('alertas'))
+
+@app.route('/alertas/descartar/<int:id>')
+@login_required
+def descartar_alerta(id): db.session.delete(Vacuna.query.get_or_404(id)); db.session.commit(); return redirect(url_for('alertas'))
+
+@app.route('/citas', methods=['GET', 'POST'])
 @login_required
 def gestion_citas():
-    return render_template('citas.html', citas=Cita.query.all(), perros=Canino.query.all())
+    if request.method == 'POST':
+        db.session.add(Cita(fecha_hora=datetime.strptime(request.form.get('fecha_hora'), '%Y-%m-%dT%H:%M'), motivo=request.form.get('motivo'), canino_id=request.form.get('canino_id'))); db.session.commit()
+        flash('Cita agendada.', 'success'); return redirect(url_for('gestion_citas'))
+    return render_template('citas.html', citas=Cita.query.order_by(Cita.fecha_hora.asc()).all(), perros=Canino.query.all())
+
+@app.route('/citas/aceptar/<int:id>')
+@login_required
+def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.session.commit(); return redirect(url_for('gestion_citas'))
+
+@app.route('/citas/rechazar/<int:id>')
+@login_required
+def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
+
+@app.route('/subir_carrusel', methods=['POST'])
+@login_required
+def subir_carrusel():
+    for f in request.files.getlist('foto_carrusel'):
+        if f and f.filename: nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); db.session.add(Carrusel(imagen=nom))
+    db.session.commit(); return redirect(url_for('inicio'))
+
+@app.route('/eliminar_carrusel/<int:id>')
+@login_required
+def eliminar_carrusel(id): db.session.delete(Carrusel.query.get_or_404(id)); db.session.commit(); return redirect(url_for('inicio'))
+
+@app.route('/videos')
+@login_required
+def videos(): return render_template('videos.html', video=Video.query.first())
+
+@app.route('/subir_video', methods=['POST'])
+@login_required
+def subir_video():
+    f = request.files.get('video_archivo')
+    if f and f.filename:
+        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom))
+        v_v = Video.query.first();
+        if v_v: db.session.delete(v_v)
+        db.session.add(Video(archivo=nom)); db.session.commit()
+    return redirect(url_for('videos'))
+
+@app.route('/manual')
+@login_required
+def manual(): return render_template('manual.html', documento=ManualDoc.query.first())
+
+@app.route('/subir_manual', methods=['POST'])
+@login_required
+def subir_manual():
+    f = request.files.get('manual_archivo')
+    if f and f.filename:
+        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom))
+        m_v = ManualDoc.query.first();
+        if m_v: db.session.delete(m_v)
+        db.session.add(ManualDoc(archivo=nom)); db.session.commit()
+    return redirect(url_for('manual'))
 
 @app.route('/reportes')
 @login_required
