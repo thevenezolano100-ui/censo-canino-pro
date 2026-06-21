@@ -13,24 +13,21 @@
         .stat-number { font-size: 3rem; font-weight: 800; line-height: 1; margin-top: 10px;}
         .chart-container { position: relative; height: 300px; width: 100%; }
 
-        /* ============================================================ */
-        #img-fluid-diagram { display: none; } /* Control de diagramas */
-        /* ESTILOS EXCELSIOS PARA DESCARGAR GRÁFICOS EN PDF             */
-        /* ============================================================ */
+        /* ESTILOS PARA DESCARGAR GRÁFICOS EN PDF (Oculta botones y ajusta tamaño al imprimir) */
         @media print {
-            .no-print { display: none !important; } /* Oculta botones y navegación */
+            .no-print { display: none !important; }
             body { background: white !important; padding-top: 0 !important; color: #000 !important; }
             .card-custom { box-shadow: none !important; border: 1px solid #ccc !important; background: white !important; page-break-inside: avoid !important; }
             .stat-number { font-size: 2.5rem !important; }
-            .row { display: flex !with flex-wrap: wrap; }
-            .col-md-4 { width: 33.33% !important; float: left; }
-            .col-lg-4 { width: 33.33% !important; float: left; }
+            .row { display: flex !important; flex-wrap: wrap !important; }
+            .col-md-4, .col-lg-4 { width: 33.33% !important; float: left !important; }
         }
     </style>
 </head>
 <body>
 <div class="container mb-5">
     
+    <!-- BARRA SUPERIOR CON BOTÓN DE IMPRESIÓN DE GRÁFICOS -->
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom border-2">
         <h2 class="text-primary fw-bold m-0">📊 Panel de Reportes Epidemiológicos</h2>
         <div class="d-flex gap-2 no-print">
@@ -39,6 +36,7 @@
         </div>
     </div>
 
+    <!-- TARJETAS KPI -->
     <div class="row mb-4 g-4">
         <div class="col-md-4">
             <div class="card card-custom p-4 bg-white text-center" style="border-bottom: 5px solid #0d6efd;">
@@ -60,6 +58,7 @@
         </div>
     </div>
 
+    <!-- GRÁFICOS -->
     <div class="row g-4">
         <div class="col-lg-4">
             <div class="card card-custom p-4 bg-white h-100">
@@ -83,8 +82,9 @@
 </div>
 
 <script>
-    const datosSalud = [{{ sano_count }}, {{ enfermo_count }}, {{ tratamiento_count }}];
-    const datosSexo = [{{ macho_count }}, {{ hembra_count }}];
+    // Conexión segura y optimizada de las variables de Python con Javascript
+    const datosSalud = [{{ sano_count or 0 }}, {{ enfermo_count or 0 }}, {{ tratamiento_count or 0 }}];
+    const datosSexo = [{{ macho_count or 0 }}, {{ hembra_count or 0 }}];
     const etiquetasVacunas = {{ vacunas_labels | tojson | safe }};
     const conteoVacunas = {{ vacunas_counts | tojson | safe }};
 
