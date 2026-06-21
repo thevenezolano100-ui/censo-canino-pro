@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link class="no-imprimir" rel="manifest" href="/manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
         .navbar-custom { background: #0d6efd; color: white; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -17,6 +18,7 @@
         .btn, .card-form { transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
         .btn:active { transform: scale(0.95); }
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; }
     </style>
 </head>
 <body>
@@ -26,13 +28,21 @@
         <h3 class="m-0 mb-2 mb-md-0">🐾 Censo Canino <span class="badge bg-light text-primary fs-6">PRO</span></h3>
         <div class="d-flex gap-2 flex-wrap align-items-center">
             <span class="badge bg-light text-dark me-2">👤 {{ current_user.nombre }}</span>
+            <button class="btn btn-dark shadow-sm btn-sm fw-bold" onclick="abrirEscanerQR()">📷 Buscar por QR</button>
             <a href="/hospitalizacion" class="btn btn-danger shadow-sm btn-sm fw-bold">🏥 Hospitalizados</a>
             <a href="/inventario" class="btn btn-secondary shadow-sm btn-sm">📦 Kardex</a>
             <a href="/mapa_general" class="btn btn-light shadow-sm btn-sm">🗺️ Mapa</a>
             <a href="/alertas" class="btn btn-warning shadow-sm btn-sm text-dark">🔔 Alertas</a>
             <a href="/citas" class="btn btn-warning shadow-sm btn-sm text-dark">📅 Citas</a>
             <a href="/reportes" class="btn btn-success shadow-sm btn-sm">📊 Reportes</a>
-            <a href="/logout" class="btn btn-outline-light ms-md-3 btn-sm">Salir</a>
+            
+            <a href="/videos" class="btn btn-info text-white shadow-sm btn-sm">🎬 Videos</a>
+            <a href="/manual" class="btn btn-primary border shadow-sm btn-sm">📖 Manual</a>
+            {% if current_user.rol == 'Admin' %}
+            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm" style="background: #6f42c1; border: none;">👥 Usuarios</a>
+            {% endif %}
+            
+            <a href="/logout" class="btn btn-outline-light ms-md-2 btn-sm">Salir</a>
         </div>
     </div>
 </nav>
@@ -65,15 +75,12 @@
                             <option value="Hospitalizado">🏥 REQUERIR HOSPITALIZACIÓN CRÍTICA</option>
                             <option value="Situación de Hambre">Situación de Hambre</option>
                             <option value="Abandono / Callejero">Abandono / Callejero</option>
-                            <option value="En Adopción">Disponible para Adopción</option>
                         </select>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-4"><input type="text" name="edad" class="form-control" placeholder="Edad" required></div>
-                        <div class="col-md-4">
-                            <select name="sexo" class="form-select"><option value="Macho">Macho</option><option value="Hembra">Hembra</option></select>
-                        </div>
+                        <div class="col-md-4"><select name="sexo" class="form-select"><option value="Macho">Macho</option><option value="Hembra">Hembra</option></select></div>
                         <div class="col-md-4"><input type="text" name="cubiculo_jaula" class="form-control text-center border-danger" placeholder="Jaula (Ej: B-3)"></div>
                     </div>
                     
@@ -84,9 +91,7 @@
                     
                     <div class="row mb-3">
                         <div class="col-md-6"><input type="text" name="sector" class="form-control" placeholder="Sector" required></div>
-                        <div class="col-md-6">
-                            <select name="estado_salud" class="form-select"><option value="Sano">Sano</option><option value="Enfermo">Enfermo</option><option value="En Tratamiento">En Tratamiento</option></select>
-                        </div>
+                        <div class="col-md-6"><select name="estado_salud" class="form-select"><option value="Sano">Sano</option><option value="Enfermo">Enfermo</option><option value="En Tratamiento">En Tratamiento</option></select></div>
                     </div>
                     <input type="file" name="foto" class="form-control mb-3" accept="image/*">
 
@@ -100,7 +105,14 @@
 
         <div class="col-lg-7">
             <div class="card card-form p-4 mb-4">
-                <h4 class="mb-3">📋 Listado General</h4>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="m-0">📋 Listado General</h4>
+                    <form method="GET" action="/" class="d-flex gap-2">
+                        <input type="text" name="buscar" class="form-control form-control-sm" placeholder="Buscar...">
+                        <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+                    </form>
+                </div>
+                
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-dark text-center">
@@ -116,16 +128,21 @@
                                 <td><div class="fw-bold">{{ perro.nombre or 'S/N' }}</div><div class="small text-muted">{{ perro.sector }}</div></td>
                                 <td>
                                     <span class="badge {% if 'Hospital' in perro.situacion %}bg-danger{% elif 'Normal' in perro.situacion %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ perro.situacion }}</span>
-                                    {% if 'Hospital' in perro.situacion %}<div class="small text-danger fw-bold mt-1">Jaula: {{ perro.cubiculo_jaula }}</div>{% endif %}
                                 </td>
                                 <td>
-                                    <div class="d-flex gap-1 justify-content-center">
+                                    <div class="d-flex gap-1 justify-content-center flex-wrap">
                                         {% if perro.estado_salud in ['Enfermo','En Tratamiento'] or perro.situacion in ['Situación de Hambre','Abandono / Callejero'] %}
-                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" onclick="prepararApadrinamiento('{{ perro.nombre or 'S/N' }}')">💖</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" onclick="prepararApadrinamiento('{{ perro.nombre or \'S/N\' }}')" title="Apadrinar">💖</button>
                                         {% endif %}
-                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm">💬</a>
-                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm">🩺</a>
-                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm">🪪</a>
+                                        
+                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm" title="WhatsApp">💬</a>
+                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm" title="Historial Médico">🩺</a>
+                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm" title="Carnet y QR">🪪</a>
+                                        
+                                        {% if current_user.rol == 'Admin' %}
+                                        <a href="/editar/{{ perro.id }}" class="btn btn-outline-warning btn-sm" title="Editar Expediente">✏️</a>
+                                        <a href="/eliminar/{{ perro.id }}" class="btn btn-outline-danger btn-sm" title="Borrar" onclick="return confirm('¿Borrar definitivamente?')">🗑️</a>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -151,9 +168,25 @@
   </div>
 </div>
 
+<div class="modal fade" id="modalLectorQR" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title fw-bold">📷 Escanear Carnet QR</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarEscaner()"></button>
+      </div>
+      <div class="modal-body text-center p-0">
+        <div id="reader"></div>
+        <p class="p-3 mb-0 text-muted small">Apunta la cámara al carnet de la mascota para abrir su expediente clínico instantáneamente.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // MAPA
     document.addEventListener("DOMContentLoaded", function() {
         var mapReg = L.map('map-registro').setView([10.4806, -66.9036], 5); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapReg);
         var markerReg = L.marker([10.4806, -66.9036], {draggable: true}).addTo(mapReg);
@@ -161,11 +194,32 @@
         if (navigator.geolocation) { navigator.geolocation.getCurrentPosition(function(pos) { var lat = pos.coords.latitude, lon = pos.coords.longitude; mapReg.setView([lat, lon], 16); markerReg.setLatLng([lat, lon]); updateFields(lat, lon); }); }
         markerReg.on('dragend', function() { var p = markerReg.getLatLng(); updateFields(p.lat, p.lng); });
     });
+
+    // PWA & OFFLINE
     function prepararApadrinamiento(nombre) { document.getElementById('nombrePerroModal').innerText = nombre; }
     window.addEventListener('online', () => { 
         let off = JSON.parse(localStorage.getItem('offlineReports')) || [];
         if(off.length > 0) { fetch('/api/sincronizar_offline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(off) }).then(res => res.json()).then(d => { if(d.status==='exito'){ localStorage.removeItem('offlineReports'); Swal.fire('¡Sincronizado!', 'Datos cargados.', 'success').then(()=>location.reload()); } }); }
     });
+
+    // LÓGICA DEL ESCÁNER QR
+    let html5QrcodeScanner;
+    function abrirEscanerQR() {
+        var modal = new bootstrap.Modal(document.getElementById('modalLectorQR'));
+        modal.show();
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    }
+    function onScanSuccess(decodedText, decodedResult) {
+        // Redirige automáticamente al enlace que contenga el QR escaneado
+        html5QrcodeScanner.clear();
+        document.getElementById('modalLectorQR').querySelector('.btn-close').click();
+        Swal.fire({ title: '¡QR Detectado!', text: 'Abriendo expediente...', icon: 'success', timer: 1500, showConfirmButton: false }).then(() => {
+            window.location.href = decodedText;
+        });
+    }
+    function onScanFailure(error) { /* Ignorar errores de no-detección en tiempo real */ }
+    function cerrarEscaner() { if(html5QrcodeScanner) { html5QrcodeScanner.clear(); } }
 </script>
 </body>
 </html>
