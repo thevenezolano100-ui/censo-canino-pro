@@ -32,6 +32,7 @@ login_manager.login_view = 'login'
 login_manager.login_message = "Sesión requerida."
 login_manager.login_message_category = "danger"
 
+# Atrapador global de excepciones para evitar pantallas genéricas Error 500
 @app.errorhandler(Exception)
 def handle_exception(e):
     if isinstance(e, HTTPException): return e.get_response()
@@ -170,7 +171,7 @@ def login():
 def logout(): logout_user(); return redirect(url_for('login'))
 
 # ==========================================
-# RUTAS CORE
+# RUTAS CORE (CENSO PRINCIPAL)
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 @login_required
@@ -217,9 +218,9 @@ def eliminar(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     db.session.delete(Canino.query.get_or_404(id)); db.session.commit(); flash('Canino eliminado.', 'success'); return redirect(url_for('inicio'))
 
-# ==========================================
-# RUTAS DE CITAS, ALERTAS Y USUARIOS
-# ==========================================
+# ============================================================
+# MODULO DE CITAS (CON LOGICA DE VOLCADO AL HISTORIAL PRO)
+# ============================================================
 @app.route('/citas', methods=['GET', 'POST'])
 @login_required
 def gestion_citas():
@@ -233,12 +234,35 @@ def gestion_citas():
 
 @app.route('/citas/aceptar/<int:id>')
 @login_required
-def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Completada'; db.session.commit(); flash('Cita marcada como Completada.', 'success'); return redirect(url_for('gestion_citas'))
+def aceptar_cita(id):
+    c = Cita.query.get_or_404(id)
+    c.estado = 'Completada'
+    
+    # PRO: Volcado automático de la cita concluida al historial clínico (Consulta)
+    nueva_consulta = Consulta(
+        peso="N/A",
+        sintomas=f"Atención por Cita Programada - Motivo: {c.motivo}",
+        diagnostico="Evaluación General / Cita Concluida",
+        tratamiento=f"Paciente asistió a las instalaciones clínicas bajo cita previamente planificada para el día {c.fecha_hora.strftime('%d/%m/%Y a las %I:%M %p')}. Conclusión: Concluida satisfactoriamente.",
+        canino_id=c.canino_id
+    )
+    db.session.add(nueva_consulta)
+    db.session.commit()
+    flash('Cita completada. Registro médico generado automáticamente en el Historial.', 'success')
+    return redirect(url_for('gestion_citas'))
 
 @app.route('/citas/rechazar/<int:id>')
 @login_required
-def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Cancelada'; db.session.commit(); flash('Cita Cancelada.', 'success'); return redirect(url_for('gestion_citas'))
+def rechazar_cita(id):
+    c = Cita.query.get_or_404(id)
+    c.estado = 'Cancelada'
+    db.session.commit()
+    flash('Cita Cancelada.', 'success')
+    return redirect(url_for('gestion_citas'))
 
+# ============================================================
+# MODULO DE ALERTAS (CON LOGICA DE VOLCADO AL HISTORIAL PRO)
+# ============================================================
 @app.route('/alertas', methods=['GET', 'POST'])
 @login_required
 def alertas():
@@ -249,22 +273,43 @@ def alertas():
         db.session.add(Vacuna(tipo=t, fecha_aplicacion=f_ap, fecha_proxima=f_ap + timedelta(days=365), canino_id=can_id))
         db.session.commit(); flash('Alerta de vacunación programada.', 'success'); return redirect(url_for('alertas'))
     
-    # SOLUCIÓN EXCELSA AL BUG: Removemos el filtro de 30 días para que muestre TODO el histórico programado
     todas_las_alertas = Vacuna.query.order_by(Vacuna.fecha_proxima.asc()).all()
     return render_template('alertas.html', alertas=todas_las_alertas, hoy=hoy, perros=Canino.query.all())
 
 @app.route('/alertas/aceptar/<int:id>')
 @login_required
 def aceptar_alerta(id):
-    alerta = Vacuna.query.get_or_404(id); perro = Canino.query.get(alerta.canino_id)
+    alerta = Vacuna.query.get_or_404(id)
+    perro = Canino.query.get(alerta.canino_id)
+    
+    # Actualización automática de la cartilla epidemiológica del perro
     if 'Parvovirus' in alerta.tipo: perro.vacuna_parvovirus = True
     elif 'Antirrábica' in alerta.tipo: perro.vacuna_antirrabica = True
-    db.session.delete(alerta); db.session.commit(); flash('Vacuna aplicada con éxito.', 'success'); return redirect(url_for('alertas'))
+    elif 'Moquillo' in alerta.tipo: perro.vacuna_moquillo = True
+    elif 'Triple' in alerta.tipo: perro.vacuna_triple = True
+    elif 'Sextuple' in alerta.tipo: perro.vacuna_sextuple = True
+    
+    # PRO: Volcado automático de la alerta médica resuelta al historial clínico (Consulta)
+    nueva_consulta = Consulta(
+        peso="N/A",
+        sintomas="Control Sanitario Automatizado (Alerta de Inmunización)",
+        diagnostico=f"Aplicación de Biológico / {alerta.tipo}",
+        tratamiento=f"Se procedió con la inoculación/aplicación correspondiente de: {alerta.tipo}. Campaña de prevención programada el día {alerta.fecha_aplicacion.strftime('%d/%m/%Y')}. Operación completada con éxito.",
+        canino_id=perro.id
+    )
+    db.session.add(nueva_consulta)
+    db.session.delete(alerta)
+    db.session.commit()
+    flash('Insumo/Vacuna aplicada. Registro médico anexado al Historial del paciente de forma automática.', 'success')
+    return redirect(url_for('alertas'))
 
 @app.route('/alertas/descartar/<int:id>')
 @login_required
 def descartar_alerta(id): db.session.delete(Vacuna.query.get_or_404(id)); db.session.commit(); return redirect(url_for('alertas'))
 
+# ==========================================
+# USUARIOS, GESTIÓN KARDEX E HISTORIAL
+# ==========================================
 @app.route('/usuarios')
 @login_required
 def gestion_usuarios():
@@ -280,9 +325,6 @@ def cambiar_clave_usuario(id):
     u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit()
     flash('Clave actualizada correctamente.', 'success'); return redirect(url_for('gestion_usuarios'))
 
-# ==========================================
-# COMPLEMENTOS ADICIONALES
-# ==========================================
 @app.route('/inventario', methods=['GET', 'POST'])
 @login_required
 def inventario():
@@ -323,6 +365,9 @@ def eliminar_consulta(id):
 @login_required
 def receta_medica(consulta_id): return render_template('receta.html', consulta=Consulta.query.get_or_404(consulta_id))
 
+# ==========================================
+# HOSPITALIZACIÓN, EXPORTACIÓN Y MAPA
+# ==========================================
 @app.route('/hospitalizacion', methods=['GET'])
 @login_required
 def hospitalizacion_pizarra(): return render_template('hospitalizacion.html', pacientes=Canino.query.filter_by(situacion='Hospitalizado').all())
@@ -370,17 +415,6 @@ def rescate(id):
     if request.method == 'POST':
         p = Canino.query.get_or_404(id); d = request.get_json(); p.latitud = d.get('lat'); p.longitud = d.get('lon'); p.situacion = '¡ALERTA QR!'; db.session.commit(); return jsonify({"status": "exito"})
     return render_template('rescate.html', perro=Canino.query.get_or_404(id))
-
-@app.route('/subir_carrusel', methods=['POST'])
-@login_required
-def subir_carrusel():
-    for f in request.files.getlist('foto_carrusel'):
-        if f and f.filename: nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); db.session.add(Carrusel(imagen=nom))
-    db.session.commit(); return redirect(url_for('inicio'))
-
-@app.route('/eliminar_carrusel/<int:id>')
-@login_required
-def eliminar_carrusel(id): db.session.delete(Carrusel.query.get_or_404(id)); db.session.commit(); return redirect(url_for('inicio'))
 
 @app.route('/videos')
 @login_required
