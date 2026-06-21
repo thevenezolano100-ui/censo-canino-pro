@@ -11,16 +11,18 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = 'clave_secreta_censo_master_v9'
+app.secret_key = 'clave_secreta_censo_master_v10'
 
-# Configuración de Rutas Absolutas (SOLUCIÓN AL ERROR 500)
+# ==========================================
+# BLINDANDO LAS RUTAS ABSOLUTAS DEL SERVIDOR
+# ==========================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Base de datos v9 con Ruta Absoluta para evitar colapsos en PythonAnywhere
-db_path = os.path.join(BASE_DIR, 'censo_v9.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+# SOLUCIÓN EXCELSA: Forzamos la creación de una DB completamente limpia (v10)
+db_path = os.path.join(BASE_DIR, 'censo_pro_v10.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -30,7 +32,7 @@ login_manager.login_message = "Sesión requerida."
 login_manager.login_message_category = "danger"
 
 # ==========================================
-# MODELOS DE BASE DE DATOS
+# MODELOS DE BASE DE DATOS EXACTOS
 # ==========================================
 
 class Usuario(UserMixin, db.Model):
@@ -111,7 +113,6 @@ class Canino(db.Model):
     latitud = db.Column(db.Float); longitud = db.Column(db.Float)
     situacion = db.Column(db.String(100), default='Censo Normal')
     reportado_por = db.Column(db.String(100))
-    
     cubiculo_jaula = db.Column(db.String(50), default="N/A") 
     
     esterilizado = db.Column(db.Boolean, default=False); desparasitado = db.Column(db.Boolean, default=False)
@@ -119,18 +120,27 @@ class Canino(db.Model):
     vacuna_triple = db.Column(db.Boolean, default=False); vacuna_sextuple = db.Column(db.Boolean, default=False)
     vacuna_antirrabica = db.Column(db.Boolean, default=False)
 
+# Creación limpia de Base de Datos y Admin por defecto
 with app.app_context():
     db.create_all()
     if not Usuario.query.filter_by(username='admin').first():
-        db.session.add(Usuario(username='admin', password=generate_password_hash('admin123'), rol='Admin', nombre='Administrador Principal', apellido='Censo', cedula='0000', whatsapp='0000', direccion='Sede Sinergia'))
+        admin_nuevo = Usuario(
+            username='admin', password=generate_password_hash('admin123'), rol='Admin', 
+            nombre='Administrador Principal', apellido='Censo', cedula='0000', 
+            whatsapp='0000', direccion='Sede Sinergia'
+        )
+        db.session.add(admin_nuevo)
         db.session.commit()
 
+# Notificaciones seguras (Evita error 500 si no hay correos configurados)
 def enviar_notificacion(asunto, mensaje_texto):
     try:
+        correo = app.config.get('MAIL_USERNAME', 'sin_configurar@gmail.com')
+        clave = app.config.get('MAIL_PASSWORD', '1234')
         msg = MIMEText(mensaje_texto)
-        msg['Subject'] = asunto; msg['From'] = app.config['MAIL_USERNAME']; msg['To'] = app.config['MAIL_USERNAME']
+        msg['Subject'] = asunto; msg['From'] = correo; msg['To'] = correo
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-            server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+            server.login(correo, clave)
             server.send_message(msg)
     except Exception as e: print(f"Notificación omitida: {e}")
 
@@ -175,23 +185,30 @@ def sincronizar_offline():
         db.session.rollback(); return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # ==========================================
-# AUTENTICACIÓN
+# RUTAS DE ACCESO Y SEGURIDAD 
 # ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
     if request.method == 'POST':
         user = request.form.get('username')
         if Usuario.query.filter_by(username=user).first():
-            flash('Usuario/Correo ya registrado en el sistema.', 'danger')
+            flash('El usuario ingresado ya está registrado en el sistema.', 'danger')
             return redirect(url_for('registro_publico'))
-        nuevo = Usuario(
-            username=user, password=generate_password_hash(request.form.get('password')),
-            nombre=request.form.get('nombre'), apellido=request.form.get('apellido'),
-            cedula=request.form.get('cedula'), whatsapp=request.form.get('whatsapp'),
-            direccion=request.form.get('direccion'), rol='Ciudadano'
+        
+        # Inserción con todos los datos que requiere la base de datos
+        nuevo_usuario = Usuario(
+            username=user, 
+            password=generate_password_hash(request.form.get('password')),
+            nombre=request.form.get('nombre'), 
+            apellido=request.form.get('apellido'),
+            cedula=request.form.get('cedula'), 
+            whatsapp=request.form.get('whatsapp'),
+            direccion=request.form.get('direccion'), 
+            rol='Ciudadano'
         )
-        db.session.add(nuevo); db.session.commit()
-        flash('Cuenta ciudadana creada. Inicia sesión.', 'success')
+        db.session.add(nuevo_usuario)
+        db.session.commit()
+        flash('¡Tu cuenta ciudadana se creó con éxito! Ahora inicia sesión.', 'success')
         return redirect(url_for('login'))
     return render_template('registro_publico.html')
 
@@ -202,7 +219,7 @@ def login():
         user = Usuario.query.filter_by(username=request.form.get('username')).first()
         if user and check_password_hash(user.password, request.form.get('password')):
             login_user(user); return redirect(url_for('inicio'))
-        flash('Credenciales de acceso incorrectas.', 'danger')
+        flash('Credenciales de acceso incorrectas. Intenta nuevamente.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -374,7 +391,7 @@ def dar_alta_hospitalizacion(id):
     return redirect(url_for('hospitalizacion_pizarra'))
 
 # ==========================================
-# RESTO DE RUTAS OPERATIVAS DEL SISTEMA
+# ROLES Y USUARIOS
 # ==========================================
 @app.route('/usuarios')
 @login_required
@@ -389,6 +406,9 @@ def cambiar_clave_usuario(id):
     u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit()
     flash(f'Clave de {u.username} actualizada.', 'success'); return redirect(url_for('gestion_usuarios'))
 
+# ==========================================
+# ALERTAS Y CITAS
+# ==========================================
 @app.route('/alertas', methods=['GET', 'POST'])
 @login_required
 def alertas():
@@ -427,6 +447,9 @@ def aceptar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Aceptada'; db.s
 @login_required
 def rechazar_cita(id): c = Cita.query.get_or_404(id); c.estado = 'Rechazada'; db.session.commit(); return redirect(url_for('gestion_citas'))
 
+# ==========================================
+# MULTIMEDIA Y DOCUMENTOS
+# ==========================================
 @app.route('/subir_carrusel', methods=['POST'])
 @login_required
 def subir_carrusel():
@@ -468,6 +491,9 @@ def subir_manual():
         db.session.add(ManualDoc(archivo=nom)); db.session.commit()
     return redirect(url_for('manual'))
 
+# ==========================================
+# EXPORTACIÓN, REPORTES Y MAPAS
+# ==========================================
 @app.route('/reportes')
 @login_required
 def reportes():
@@ -485,5 +511,17 @@ def exportar():
 @app.route('/mapa_general')
 @login_required
 def mapa_general(): return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
+
+@app.route('/carnet/<int:id>')
+@login_required
+def carnet(id): return render_template('carnet.html', dog=Canino.query.get_or_404(id), perro=Canino.query.get_or_404(id))
+
+@app.route('/rescate/<int:id>', methods=['GET', 'POST'])
+def rescate(id):
+    p = Canino.query.get_or_404(id)
+    if request.method == 'POST':
+        datos = request.get_json(); p.latitud = datos.get('lat'); p.longitud = datos.get('lon'); p.situacion = '¡ALERTA QR!'; db.session.commit()
+        return jsonify({"status": "exito"})
+    return render_template('rescate.html', perro=p)
 
 if __name__ == '__main__': app.run(debug=True)
