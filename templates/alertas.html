@@ -2,74 +2,81 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Alertas Sanitarias</title>
+    <title>Gestión de Alertas Sanitarias</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif; padding-top: 20px;}
+        .card-custom { border: none; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+    </style>
 </head>
-<body class="bg-light">
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="text-danger">🔔 Sistema de Alertas de Vacunación</h2>
-        <a href="/" class="btn btn-secondary">Volver</a>
+<body>
+<div class="container mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <h2 class="text-warning fw-bold m-0 text-dark">🔔 Panel de Alertas de Vacunación</h2>
+        <a href="/" class="btn btn-secondary shadow-sm">Volver al Panel</a>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} shadow-sm">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
     <div class="row">
-        {% if current_user.rol == 'Admin' %}
-        <div class="col-md-4">
-            <div class="card p-3 shadow-sm border-0" style="border-radius:12px;">
-                <h5>Programar Nueva Alerta</h5>
-                <form method="POST">
-                    <label class="form-label small mt-2">Canino</label>
-                    <select name="canino_id" class="form-select" required>
-                        {% for p in perros %}<option value="{{ p.id }}">{{ p.nombre or 'S/N' }}</option>{% endfor %}
+        <!-- Formulario Programar Alerta -->
+        <div class="col-md-4 mb-4">
+            <div class="card card-custom p-4 bg-white">
+                <h5 class="mb-3 text-warning text-dark">➕ Programar Alerta</h5>
+                <form method="POST" action="/alertas">
+                    <select name="canino_id" class="form-select mb-3" required>
+                        <option value="">Selecciona un Paciente...</option>
+                        {% for p in perros %}
+                        <option value="{{ p.id }}">{{ p.nombre or 'S/N' }} - {{ p.raza }}</option>
+                        {% endfor %}
                     </select>
-                    <label class="form-label small mt-2">Vacuna</label>
-                    <select name="tipo" class="form-select">
-                        <option value="Parvovirus Cachorro">Parvovirus Cachorro (21 días)</option>
-                        <option value="Antirrábica Anual">Antirrábica Anual (365 días)</option>
+                    <select name="tipo" class="form-select mb-3" required>
+                        <option value="Vacuna Parvovirus">Vacuna Parvovirus</option>
+                        <option value="Vacuna Moquillo">Vacuna Moquillo</option>
+                        <option value="Vacuna Triple">Vacuna Triple</option>
+                        <option value="Vacuna Antirrábica">Vacuna Antirrábica</option>
+                        <option value="Desparasitación">Desparasitación</option>
                     </select>
-                    <label class="form-label small mt-2">Fecha Aplicación</label>
-                    <input type="date" name="fecha_aplicacion" class="form-control" required>
-                    <button type="submit" class="btn btn-danger w-100 mt-3 shadow-sm">Programar</button>
+                    <label class="small fw-bold text-muted">Fecha de Aplicación Base:</label>
+                    <input type="date" name="fecha_aplicacion" class="form-control mb-3" required>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold shadow-sm">Guardar Alerta</button>
                 </form>
             </div>
         </div>
-        {% endif %}
-        
-        <div class="col-md-{% if current_user.rol == 'Admin' %}8{% else %}12{% endif %}">
-            <div class="card p-3 shadow-sm border-0" style="border-radius:12px;">
-                <h5>Próximos Vencimientos (30 días)</h5>
-                <table class="table table-hover table-sm mt-2 align-middle text-center">
-                    <thead class="table-dark"><tr><th>Canino</th><th>Vacuna</th><th>Vencimiento</th><th>Gestión</th></tr></thead>
-                    <tbody>
-                        {% for a in alertas %}
-                        <tr class="table-warning">
-                            <td><b>{{ a.paciente.nombre or 'S/N' }}</b></td>
-                            <td>{{ a.tipo }}</td>
-                            <td class="text-danger fw-bold">{{ a.fecha_proxima.strftime('%d/%m/%Y') }}</td>
-                            <td>
-                                {% if current_user.rol == 'Admin' %}
-                                <div class="d-flex gap-1 justify-content-center">
-                                    <a href="/alertas/aceptar/{{ a.id }}" class="btn btn-sm btn-success py-0 px-2 shadow-sm">✔ Aceptar</a>
-                                    <a href="/alertas/descartar/{{ a.id }}" class="btn btn-sm btn-danger py-0 px-2 shadow-sm" onclick="return confirm('¿Rechazar alerta?')">✖ Rechazar</a>
-                                </div>
-                                {% else %}
-                                <span class="badge bg-secondary">Vigilado</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="text-muted p-3">No hay alertas críticas registradas.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+
+        <!-- Tabla de Alertas -->
+        <div class="col-md-8">
+            <div class="card card-custom p-4 bg-white">
+                <h5 class="mb-3">🚨 Alertas Críticas (Próximos 30 días)</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr><th>Paciente</th><th>Tratamiento</th><th>Vencimiento</th><th>Acción</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for alerta in alertas %}
+                            <tr>
+                                <td class="fw-bold">{{ alerta.paciente.nombre or 'S/N' }}</td>
+                                <td>{{ alerta.tipo }}</td>
+                                <td>
+                                    {% set dias = (alerta.fecha_proxima - hoy).days %}
+                                    {% if dias < 0 %}<span class="badge bg-danger">Vencida (hace {{ dias|abs }} días)</span>
+                                    {% elif dias <= 7 %}<span class="badge bg-warning text-dark">En {{ dias }} días</span>
+                                    {% else %}<span class="badge bg-success">En {{ dias }} días</span>{% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <a href="/alertas/aceptar/{{ alerta.id }}" class="btn btn-sm btn-success">Aplicar</a>
+                                        <a href="/alertas/descartar/{{ alerta.id }}" class="btn btn-sm btn-danger">X</a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted p-3">No hay alertas sanitarias programadas para este mes.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
