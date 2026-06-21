@@ -224,7 +224,6 @@ def eliminar(id):
 @login_required
 def gestion_citas():
     if request.method == 'POST':
-        # Procesamos la fecha local de HTML5 a formato datetime de Python
         fecha_texto = request.form.get('fecha_hora')
         fecha_obj = datetime.strptime(fecha_texto, '%Y-%m-%dT%H:%M')
         db.session.add(Cita(fecha_hora=fecha_obj, motivo=request.form.get('motivo'), canino_id=request.form.get('canino_id')))
@@ -247,10 +246,12 @@ def alertas():
     if request.method == 'POST':
         t = request.form.get('tipo'); can_id = request.form.get('canino_id')
         f_ap = datetime.strptime(request.form.get('fecha_aplicacion'), '%Y-%m-%d').date()
-        # Calcula automáticamente la próxima dosis a 365 días (1 año)
         db.session.add(Vacuna(tipo=t, fecha_aplicacion=f_ap, fecha_proxima=f_ap + timedelta(days=365), canino_id=can_id))
         db.session.commit(); flash('Alerta de vacunación programada.', 'success'); return redirect(url_for('alertas'))
-    return render_template('alertas.html', alertas=Vacuna.query.filter(Vacuna.fecha_proxima <= hoy + timedelta(days=30)).all(), hoy=hoy, perros=Canino.query.all())
+    
+    # SOLUCIÓN EXCELSA AL BUG: Removemos el filtro de 30 días para que muestre TODO el histórico programado
+    todas_las_alertas = Vacuna.query.order_by(Vacuna.fecha_proxima.asc()).all()
+    return render_template('alertas.html', alertas=todas_las_alertas, hoy=hoy, perros=Canino.query.all())
 
 @app.route('/alertas/aceptar/<int:id>')
 @login_required
@@ -258,7 +259,7 @@ def aceptar_alerta(id):
     alerta = Vacuna.query.get_or_404(id); perro = Canino.query.get(alerta.canino_id)
     if 'Parvovirus' in alerta.tipo: perro.vacuna_parvovirus = True
     elif 'Antirrábica' in alerta.tipo: perro.vacuna_antirrabica = True
-    db.session.delete(alerta); db.session.commit(); flash('Vacuna aplicada. Perfil del paciente actualizado.', 'success'); return redirect(url_for('alertas'))
+    db.session.delete(alerta); db.session.commit(); flash('Vacuna aplicada con éxito.', 'success'); return redirect(url_for('alertas'))
 
 @app.route('/alertas/descartar/<int:id>')
 @login_required
@@ -267,7 +268,6 @@ def descartar_alerta(id): db.session.delete(Vacuna.query.get_or_404(id)); db.ses
 @app.route('/usuarios')
 @login_required
 def gestion_usuarios():
-    # Solo el Admin puede ver la tabla de usuarios
     if current_user.rol != 'Admin': 
         flash('Acceso denegado. Solo administradores.', 'danger')
         return redirect(url_for('inicio'))
@@ -281,7 +281,7 @@ def cambiar_clave_usuario(id):
     flash('Clave actualizada correctamente.', 'success'); return redirect(url_for('gestion_usuarios'))
 
 # ==========================================
-# RUTAS RESTANTES (Inventario, Historia, etc.)
+# COMPLEMENTOS ADICIONALES
 # ==========================================
 @app.route('/inventario', methods=['GET', 'POST'])
 @login_required

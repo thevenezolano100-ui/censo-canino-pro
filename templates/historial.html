@@ -31,18 +31,7 @@
         <a href="/" class="btn btn-secondary shadow-sm">Volver al Panel</a>
     </div>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
-            {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
     <div class="row">
-        <!-- FORMULARIO NUEVA CONSULTA -->
         <div class="col-lg-5 mb-4">
             <div class="card card-custom p-4 bg-white sticky-top" style="top: 20px;">
                 <h5 class="text-success mb-4 fw-bold">➕ Añadir Nueva Consulta</h5>
@@ -80,8 +69,8 @@
                     </div>
 
                     <div class="mb-4">
-                        <label class="small fw-bold text-muted">Tratamiento a seguir en casa</label>
-                        <textarea name="tratamiento" class="form-control" rows="3" placeholder="Medicamentos y posología para la receta..." required></textarea>
+                        <label class="small fw-bold text-muted">Tratamiento para el Récipe</label>
+                        <textarea name="tratamiento" class="form-control" rows="3" placeholder="Medicamentos, posología y dosis que saldrán impresas en el recetario..." required></textarea>
                     </div>
                     
                     <button type="submit" class="btn btn-success btn-lg w-100 fw-bold shadow-sm">💾 Guardar Consulta Médica</button>
@@ -89,16 +78,15 @@
             </div>
         </div>
 
-        <!-- TARJETAS DE CONSULTAS PASADAS -->
         <div class="col-lg-7">
             <div class="card card-custom p-4 bg-white" style="min-height: 500px;">
-                <h5 class="mb-4 fw-bold text-secondary">📜 Registros Anteriores</h5>
+                <h5 class="mb-4 fw-bold text-secondary">📜 Historial Clínico de Consultas</h5>
                 
                 {% for c in perro.consultas|reverse %}
                 <div class="consulta-item">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <span class="badge bg-dark fs-6 shadow-sm">📅 {{ c.fecha.strftime('%d/%m/%Y - %H:%M') }}</span>
-                        <span class="badge bg-info text-dark fs-6 shadow-sm">⚖️ {{ c.peso }}</span>
+                        <span class="badge bg-info text-dark fs-6 shadow-sm">⚖️ Peso: {{ c.peso or '--' }}</span>
                     </div>
                     
                     <p class="mb-1 text-secondary"><b>Síntomas:</b> {{ c.sintomas }}</p>
@@ -108,10 +96,8 @@
                         <p class="mb-0 text-success" style="white-space: pre-wrap; font-size: 0.95rem;"><b>Tratamiento aplicado:</b><br>{{ c.tratamiento }}</p>
                     </div>
                     
-                    <!-- BOTONES DE ACCIÓN (NUEVO BOTÓN DE IMPRIMIR) -->
                     <div class="d-flex justify-content-end gap-2 mt-3 border-top pt-3">
-                        <!-- Abre la receta en una pestaña nueva -->
-                        <a href="/receta/{{ c.id }}" target="_blank" class="btn btn-sm btn-outline-primary fw-bold">🖨️ Imprimir Récipe</a>
+                        <a href="/receta/{{ c.id }}" target="_blank" class="btn btn-primary btn-sm fw-bold px-3 shadow-sm">🖨️ Ver / Imprimir Récipe Médico</a>
                         
                         {% if current_user.rol == 'Admin' %}
                         <a href="/historial/eliminar/{{ c.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Borrar este registro médico permanentemente?')">🗑️ Eliminar</a>

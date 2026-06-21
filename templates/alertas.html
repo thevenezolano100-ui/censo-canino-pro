@@ -19,10 +19,9 @@
     </div>
 
     <div class="row">
-        <!-- Formulario Programar Alerta -->
         <div class="col-md-4 mb-4">
             <div class="card card-custom p-4 bg-white">
-                <h5 class="mb-3 text-warning text-dark">➕ Programar Alerta</h5>
+                <h5 class="mb-3 text-dark fw-bold">➕ Programar Alerta</h5>
                 <form method="POST" action="/alertas">
                     <select name="canino_id" class="form-select mb-3" required>
                         <option value="">Selecciona un Paciente...</option>
@@ -44,35 +43,31 @@
             </div>
         </div>
 
-        <!-- Tabla de Alertas -->
         <div class="col-md-8">
             <div class="card card-custom p-4 bg-white">
-                <h5 class="mb-3">🚨 Alertas Críticas (Próximos 30 días)</h5>
+                <h5 class="mb-3 fw-bold">🚨 Alertas y Próximas Inmunizaciones</h5>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-dark">
-                            <tr><th>Paciente</th><th>Tratamiento</th><th>Vencimiento</th><th>Acción</th></tr>
+                            <tr><th>Paciente</th><th>Tratamiento</th><th>Próxima Aplicación</th><th>Acción</th></tr>
                         </thead>
                         <tbody>
                             {% for alerta in alertas %}
                             <tr>
-                                <td class="fw-bold">{{ alerta.paciente.nombre or 'S/N' }}</td>
+                                <td class="fw-bold">🐶 {{ alerta.paciente.nombre or 'S/N' }}</td>
                                 <td>{{ alerta.tipo }}</td>
                                 <td>
-                                    {% set dias = (alerta.fecha_proxima - hoy).days %}
-                                    {% if dias < 0 %}<span class="badge bg-danger">Vencida (hace {{ dias|abs }} días)</span>
-                                    {% elif dias <= 7 %}<span class="badge bg-warning text-dark">En {{ dias }} días</span>
-                                    {% else %}<span class="badge bg-success">En {{ dias }} días</span>{% endif %}
+                                    <span class="badge bg-primary fs-6">{{ alerta.fecha_proxima.strftime('%d/%m/%Y') }}</span>
                                 </td>
                                 <td>
                                     <div class="d-flex gap-1">
-                                        <a href="/alertas/aceptar/{{ alerta.id }}" class="btn btn-sm btn-success">Aplicar</a>
-                                        <a href="/alertas/descartar/{{ alerta.id }}" class="btn btn-sm btn-danger">X</a>
+                                        <a href="/alertas/aceptar/{{ alerta.id }}" class="btn btn-sm btn-success fw-bold" onclick="return confirm('¿Aplicar dosis y actualizar expediente?')">Aplicar</a>
+                                        <a href="/alertas/descartar/{{ alerta.id }}" class="btn btn-sm btn-outline-danger" title="Eliminar Alerta">🗑️</a>
                                     </div>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="4" class="text-center text-muted p-3">No hay alertas sanitarias programadas para este mes.</td></tr>
+                            <tr><td colspan="4" class="text-center text-muted p-3">No hay alertas sanitarias programadas aún.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
