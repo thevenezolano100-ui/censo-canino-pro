@@ -132,7 +132,7 @@
                                 <td>
                                     <div class="d-flex gap-1 justify-content-center flex-wrap">
                                         {% if perro.estado_salud in ['Enfermo','En Tratamiento'] or perro.situacion in ['Situación de Hambre','Abandono / Callejero'] %}
-                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" onclick="prepararApadrinamiento('{{ perro.nombre or \'S/N\' }}')" title="Apadrinar">💖</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" data-nombre="{{ perro.nombre or 'S/N' }}" onclick="prepararApadrinamiento(this)" title="Apadrinar">💖</button>
                                         {% endif %}
                                         
                                         <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm" title="WhatsApp">💬</a>
@@ -196,13 +196,13 @@
     });
 
     // PWA & OFFLINE
-    function prepararApadrinamiento(nombre) { document.getElementById('nombrePerroModal').innerText = nombre; }
+    function prepararApadrinamiento(btn) { document.getElementById('nombrePerroModal').innerText = btn.getAttribute('data-nombre'); }
     window.addEventListener('online', () => { 
         let off = JSON.parse(localStorage.getItem('offlineReports')) || [];
         if(off.length > 0) { fetch('/api/sincronizar_offline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(off) }).then(res => res.json()).then(d => { if(d.status==='exito'){ localStorage.removeItem('offlineReports'); Swal.fire('¡Sincronizado!', 'Datos cargados.', 'success').then(()=>location.reload()); } }); }
     });
 
-    // LÓGICA DEL ESCÁNER QR
+    // ESCÁNER QR
     let html5QrcodeScanner;
     function abrirEscanerQR() {
         var modal = new bootstrap.Modal(document.getElementById('modalLectorQR'));
@@ -211,14 +211,13 @@
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
     }
     function onScanSuccess(decodedText, decodedResult) {
-        // Redirige automáticamente al enlace que contenga el QR escaneado
         html5QrcodeScanner.clear();
         document.getElementById('modalLectorQR').querySelector('.btn-close').click();
         Swal.fire({ title: '¡QR Detectado!', text: 'Abriendo expediente...', icon: 'success', timer: 1500, showConfirmButton: false }).then(() => {
             window.location.href = decodedText;
         });
     }
-    function onScanFailure(error) { /* Ignorar errores de no-detección en tiempo real */ }
+    function onScanFailure(error) {}
     function cerrarEscaner() { if(html5QrcodeScanner) { html5QrcodeScanner.clear(); } }
 </script>
 </body>

@@ -9,12 +9,14 @@ from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import HTTPException
+import traceback
 
 app = Flask(__name__)
 app.secret_key = 'clave_secreta_censo_master_v10'
 
 # ==========================================
-# RUTAS ABSOLUTAS Y CONFIGURACIÓN (OPTIMIZADO)
+# RUTAS ABSOLUTAS Y BASE DE DATOS
 # ==========================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
@@ -30,8 +32,24 @@ login_manager.login_view = 'login'
 login_manager.login_message = "Sesión requerida."
 login_manager.login_message_category = "danger"
 
+# ============================================================
+# ATRAPADOR DE ERRORES GLOBAL (EVITA LA PANTALLA BLANCA 500)
+# ============================================================
+@app.errorhandler(Exception)
+def handle_exception(e):
+    if isinstance(e, HTTPException):
+        return e.get_response()
+    # Si ocurre un error fatal, lo muestra en pantalla en lugar del Error 500
+    return f"""
+    <div style="font-family: Arial; padding: 40px; background: #fff3f3; color: #dc3545; border: 2px solid #dc3545; border-radius: 10px; margin: 20px;">
+        <h1 style="margin-top:0;">⚠️ Diagnóstico Técnico Avanzado</h1>
+        <p>El sistema ha evitado un Error 500 y ha capturado el siguiente fallo interno:</p>
+        <pre style="background: #212529; color: #10b981; padding: 20px; border-radius: 5px; overflow-x: auto;">{traceback.format_exc()}</pre>
+    </div>
+    """, 500
+
 # ==========================================
-# MODELOS DE BASE DE DATOS (COMPLETOS)
+# MODELOS DE BASE DE DATOS
 # ==========================================
 class Usuario(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -125,7 +143,7 @@ with app.app_context():
         db.session.commit()
 
 # ==========================================
-# OFFLINE PWA & LOGIN
+# RUTAS PWA OFFLINE
 # ==========================================
 @app.route('/sw.js')
 def sw():
@@ -141,49 +159,45 @@ def manifest(): return make_response(app.send_static_file('manifest.json'))
 def sincronizar_offline():
     datos = request.get_json()
     if not datos: return jsonify({'status': 'error', 'message': 'JSON vacío'}), 400
-    try:
-        for item in datos:
-            try: lat = float(item.get('latitud') or 0)
-            except: lat = 0
-            try: lon = float(item.get('longitud') or 0)
-            except: lon = 0
-            nuevo = Canino(
-                nombre=item.get('nombre'), raza=item.get('raza'), edad=item.get('edad'),
-                sexo=item.get('sexo'), estado_tenencia=item.get('estado_tenencia'),
-                nombre_propietario=item.get('nombre_propietario'), whatsapp_propietario=item.get('whatsapp_propietario'),
-                estado_salud=item.get('estado_salud'), sector=item.get('sector'), latitud=lat, longitud=lon,
-                situacion=item.get('situacion', 'Censo Normal'), reportado_por="Sincronizado Offline", foto="",
-                esterilizado=item.get('esterilizado') == 'on', desparasitado=item.get('desparasitado') == 'on',
-                vacuna_parvovirus=item.get('vacuna_parvovirus') == 'on', vacuna_moquillo=item.get('vacuna_moquillo') == 'on',
-                vacuna_triple=item.get('vacuna_triple') == 'on', vacuna_sextuple=item.get('vacuna_sextuple') == 'on',
-                vacuna_antirrabica=item.get('vacuna_antirrabica') == 'on'
-            )
-            db.session.add(nuevo)
-        db.session.commit()
-        return jsonify({'status': 'exito'})
-    except Exception as e:
-        db.session.rollback(); return jsonify({'status': 'error', 'message': str(e)}), 500
+    for item in datos:
+        try: lat = float(item.get('latitud') or 0)
+        except: lat = 0
+        try: lon = float(item.get('longitud') or 0)
+        except: lon = 0
+        nuevo = Canino(
+            nombre=item.get('nombre'), raza=item.get('raza'), edad=item.get('edad'),
+            sexo=item.get('sexo'), estado_tenencia=item.get('estado_tenencia'),
+            nombre_propietario=item.get('nombre_propietario'), whatsapp_propietario=item.get('whatsapp_propietario'),
+            estado_salud=item.get('estado_salud'), sector=item.get('sector'), latitud=lat, longitud=lon,
+            situacion=item.get('situacion', 'Censo Normal'), reportado_por="Sincronizado Offline", foto="",
+            esterilizado=item.get('esterilizado') == 'on', desparasitado=item.get('desparasitado') == 'on',
+            vacuna_parvovirus=item.get('vacuna_parvovirus') == 'on', vacuna_moquillo=item.get('vacuna_moquillo') == 'on',
+            vacuna_triple=item.get('vacuna_triple') == 'on', vacuna_sextuple=item.get('vacuna_sextuple') == 'on',
+            vacuna_antirrabica=item.get('vacuna_antirrabica') == 'on'
+        )
+        db.session.add(nuevo)
+    db.session.commit()
+    return jsonify({'status': 'exito'})
 
+# ==========================================
+# RUTAS DE LOGIN Y REGISTRO
+# ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro_publico():
     if request.method == 'POST':
-        try:
-            user = request.form.get('username')
-            if Usuario.query.filter_by(username=user).first():
-                flash('Usuario ya registrado.', 'danger')
-                return redirect(url_for('registro_publico'))
-            nuevo = Usuario(
-                username=user, password=generate_password_hash(request.form.get('password')),
-                nombre=request.form.get('nombre'), apellido=request.form.get('apellido'),
-                cedula=request.form.get('cedula'), whatsapp=request.form.get('whatsapp'),
-                direccion=request.form.get('direccion'), rol='Ciudadano'
-            )
-            db.session.add(nuevo); db.session.commit()
-            flash('Cuenta creada. Inicia sesión.', 'success')
-            return redirect(url_for('login'))
-        except Exception as e:
-            db.session.rollback()
-            return f"<h1>Error Técnico:</h1><pre>{str(e)}</pre>"
+        user = request.form.get('username')
+        if Usuario.query.filter_by(username=user).first():
+            flash('Usuario ya registrado.', 'danger')
+            return redirect(url_for('registro_publico'))
+        nuevo = Usuario(
+            username=user, password=generate_password_hash(request.form.get('password')),
+            nombre=request.form.get('nombre'), apellido=request.form.get('apellido'),
+            cedula=request.form.get('cedula'), whatsapp=request.form.get('whatsapp'),
+            direccion=request.form.get('direccion'), rol='Ciudadano'
+        )
+        db.session.add(nuevo); db.session.commit()
+        flash('Cuenta creada. Inicia sesión.', 'success')
+        return redirect(url_for('login'))
     return render_template('registro_publico.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -201,7 +215,7 @@ def login():
 def logout(): logout_user(); return redirect(url_for('login'))
 
 # ==========================================
-# RUTAS DEL CORE Y CRUD
+# RUTAS PRINCIPALES (CRUD)
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 @login_required
@@ -255,7 +269,7 @@ def eliminar(id):
     db.session.delete(Canino.query.get_or_404(id)); db.session.commit(); flash('Canino eliminado.', 'success'); return redirect(url_for('inicio'))
 
 # ==========================================
-# RUTAS DE COMPLEMENTO MÉDICO
+# RUTAS DEL HOSPITAL E INVENTARIO
 # ==========================================
 @app.route('/inventario', methods=['GET', 'POST'])
 @login_required
@@ -346,7 +360,7 @@ def dar_alta_hospitalizacion(id):
     return redirect(url_for('hospitalizacion_pizarra'))
 
 # ==========================================
-# RUTAS MULTIMEDIA, USUARIOS Y HERRAMIENTAS
+# RUTAS COMPLEMENTARIAS
 # ==========================================
 @app.route('/usuarios')
 @login_required
@@ -440,9 +454,6 @@ def subir_manual():
         db.session.add(ManualDoc(archivo=nom)); db.session.commit()
     return redirect(url_for('manual'))
 
-# ==========================================
-# REPORTES, MAPA Y BÚSQUEDA QR
-# ==========================================
 @app.route('/reportes')
 @login_required
 def reportes():
