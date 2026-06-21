@@ -7,31 +7,16 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="manifest" href="/manifest.json">
-    
-    <!-- LIBRERÍA DE ALERTAS INMERSIVAS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
     <style>
         body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
         .navbar-custom { background: #0d6efd; color: white; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .card-form { border: none; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
         #map-registro { height: 350px; border-radius: 12px; border: 2px solid #dee2e6; z-index: 1; width: 100%;}
         .carousel-item img { height: 350px; object-fit: cover; border-radius: 15px; }
-
-        /* EFECTOS TÁCTILES INMERSIVOS */
-        .btn, .card-form { 
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); 
-        }
-        .btn:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.15); 
-        }
-        .btn:active { 
-            transform: scale(0.95);
-        }
-        .table-hover tbody tr {
-            transition: background-color 0.2s ease;
-        }
+        .btn, .card-form { transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.15); }
+        .btn:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -40,80 +25,19 @@
     <div class="container d-flex justify-content-between align-items-center flex-wrap">
         <h3 class="m-0 mb-2 mb-md-0">🐾 Censo Canino <span class="badge bg-light text-primary fs-6">PRO</span></h3>
         <div class="d-flex gap-2 flex-wrap align-items-center">
-            <span class="badge bg-light text-dark me-2">👤 {{ current_user.nombre }} ({{ current_user.rol }})</span>
+            <span class="badge bg-light text-dark me-2">👤 {{ current_user.nombre }}</span>
+            <a href="/hospitalizacion" class="btn btn-danger shadow-sm btn-sm fw-bold" style="background-color: #dc3545; border: none;">🏥 Hospitalizados</a>
+            <a href="/inventario" class="btn btn-secondary shadow-sm btn-sm">📦 Kardex</a>
             <a href="/mapa_general" class="btn btn-light shadow-sm btn-sm">🗺️ Mapa</a>
-            <a href="/alertas" class="btn btn-danger shadow-sm btn-sm">🔔 Alertas</a>
-            <a href="/citas" class="btn btn-warning shadow-sm btn-sm">📅 Citas</a>
+            <a href="/alertas" class="btn btn-warning shadow-sm btn-sm text-dark">🔔 Alertas</a>
+            <a href="/citas" class="btn btn-warning shadow-sm btn-sm text-dark">📅 Citas</a>
             <a href="/reportes" class="btn btn-success shadow-sm btn-sm">📊 Reportes</a>
-            <a href="/videos" class="btn btn-info text-white shadow-sm btn-sm">🎬 Videos</a>
-            <a href="/manual" class="btn btn-dark shadow-sm btn-sm">📖 Manual Médico</a>
-            <a href="/inventario" class="btn btn-secondary shadow-sm btn-sm" style="background-color: #6c757d; border: none;">📦 Kardex</a>
-            {% if current_user.rol == 'Admin' %}
-            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm" style="background: #6f42c1; border: none;">👥 Usuarios</a>
-            {% endif %}
             <a href="/logout" class="btn btn-outline-light ms-md-3 btn-sm">Salir</a>
         </div>
     </div>
 </nav>
 
 <div class="container mb-5">
-    
-    {% if current_user.rol == 'Admin' %}
-    <div class="text-end mb-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalCarrusel">
-            ⚙️ Configurar Carrusel
-        </button>
-    </div>
-    {% endif %}
-
-    <!-- BANNER CARRUSEL -->
-    <div id="bannerInstitucional" class="carousel slide shadow-sm mb-4" data-bs-ride="carousel" style="border-radius: 15px; overflow: hidden;">
-      <div class="carousel-inner">
-        {% if carrusel %}
-            {% for foto in carrusel %}
-            <div class="carousel-item {% if loop.first %}active{% endif %}" data-bs-interval="3000">
-              <img src="{{ url_for('static', filename='uploads/' + foto.imagen) }}" class="d-block w-100" alt="Evidencia">
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="carousel-item active">
-              <img src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1200&h=300&q=80" class="d-block w-100" alt="Rescate">
-            </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- MODAL DE CARRUSEL -->
-    {% if current_user.rol == 'Admin' %}
-    <div class="modal fade" id="modalCarrusel" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header bg-dark text-white">
-            <h5 class="modal-title">📸 Gestor del Banner Animado</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-              <form method="POST" action="/subir_carrusel" enctype="multipart/form-data" class="mb-4">
-                  <div class="input-group">
-                      <input type="file" name="foto_carrusel" class="form-control" accept="image/*" multiple required>
-                      <button type="submit" class="btn btn-primary">Subir Fotos</button>
-                  </div>
-              </form>
-              <div class="d-flex gap-2 flex-wrap">
-                  {% for foto in carrusel %}
-                  <div class="position-relative d-inline-block">
-                      <img src="{{ url_for('static', filename='uploads/' + foto.imagen) }}" width="120" height="80" style="object-fit: cover; border-radius: 5px; border: 1px solid #ccc;">
-                      <a href="/eliminar_carrusel/{{ foto.id }}" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger text-decoration-none" style="font-size: 14px;" onclick="return confirm('¿Borrar foto?')">❌</a>
-                  </div>
-                  {% endfor %}
-              </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- ALERTAS FLASH TRADICIONALES DE FLASK -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -125,206 +49,103 @@
     {% endwith %}
 
     <div class="row">
-        <!-- FORMULARIO DE REGISTRO -->
         <div class="col-lg-5">
             <div class="card card-form p-4 sticky-top" style="top: 20px;">
                 <h4 class="mb-4 text-primary">📝 Registrar / Reportar Canino</h4>
                 <form method="POST" action="/" enctype="multipart/form-data">
                     <div class="row g-2 mb-3">
                         <div class="col-md-6"><input type="text" name="nombre" class="form-control" placeholder="Nombre"></div>
-                        <div class="col-md-6"><input type="text" name="raza" class="form-control" placeholder="Raza / Aspecto" required></div>
+                        <div class="col-md-6"><input type="text" name="raza" class="form-control" placeholder="Raza" required></div>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="fw-bold small text-danger">⚠️ Situación Crítica</label>
+                        <label class="fw-bold small text-danger">⚠️ Situación Clínica / Estado</label>
                         <select name="situacion" class="form-select border-danger" required>
                             <option value="Censo Normal">Censo Normal (Sano / En Casa)</option>
+                            <option value="Hospitalizado">🏥 REQUERIR HOSPITALIZACIÓN CRÍTICA</option>
                             <option value="Situación de Hambre">Situación de Hambre</option>
                             <option value="Abandono / Callejero">Abandono / Callejero</option>
                             <option value="En Adopción">Disponible para Adopción</option>
-                            <option value="Herido / Peligro">Herido o Enfermo</option>
                         </select>
                     </div>
 
-                    <div class="row g-2 mb-3">
+                    <div class="row g-3 mb-3">
                         <div class="col-md-4"><input type="text" name="edad" class="form-control" placeholder="Edad" required></div>
                         <div class="col-md-4">
-                            <select name="sexo" class="form-select">
-                                <option value="Macho">Macho</option><option value="Hembra">Hembra</option>
-                            </select>
+                            <select name="sexo" class="form-select"><option value="Macho">Macho</option><option value="Hembra">Hembra</option></select>
                         </div>
-                        <div class="col-md-4">
-                            <select name="estado_tenencia" class="form-select">
-                                <option value="Con dueño">Con dueño</option><option value="Callejero">Callejero</option>
-                            </select>
-                        </div>
+                        <div class="col-md-4"><input type="text" name="cubiculo_jaula" class="form-control text-center border-danger" placeholder="Jaula (Ej: B-3)"></div>
                     </div>
+                    
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6"><input type="text" name="nombre_propietario" class="form-control" placeholder="Dueño / Responsable"></div>
-                        <div class="col-md-6"><input type="text" name="whatsapp_propietario" class="form-control border-success" placeholder="WhatsApp (Ej: 58414...)" required></div>
+                        <div class="col-md-6"><input type="text" name="nombre_propietario" class="form-control" placeholder="Dueño"></div>
+                        <div class="col-md-6"><input type="text" name="whatsapp_propietario" class="form-control" placeholder="WhatsApp" required></div>
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-md-6"><input type="text" name="sector" class="form-control" placeholder="Sector/Barrio" required></div>
+                        <div class="col-md-6"><input type="text" name="sector" class="form-control" placeholder="Sector" required></div>
                         <div class="col-md-6">
-                            <select name="estado_salud" class="form-select">
-                                <option value="Sano">Sano</option><option value="Enfermo">Enfermo</option><option value="En Tratamiento">En Tratamiento</option>
-                            </select>
+                            <select name="estado_salud" class="form-select"><option value="Sano">Sano</option><option value="Enfermo">Enfermo</option><option value="En Tratamiento">En Tratamiento</option></select>
                         </div>
                     </div>
                     <input type="file" name="foto" class="form-control mb-3" accept="image/*">
 
-                    <h6 class="mt-4 border-bottom pb-2 text-muted">🩺 Datos Sanitarios Iniciales</h6>
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <div class="form-check"><input type="checkbox" name="esterilizado" class="form-check-input"> <label class="small">Esterilizado</label></div>
-                            <div class="form-check"><input type="checkbox" name="desparasitado" class="form-check-input"> <label class="small">Desparasitado</label></div>
-                            <div class="form-check"><input type="checkbox" name="vacuna_parvovirus" class="form-check-input"> <label class="small">Parvovirus</label></div>
-                        </div>
-                        <div class="col-6">
-                            <div class="form-check"><input type="checkbox" name="vacuna_moquillo" class="form-check-input"> <label class="small">Moquillo</label></div>
-                            <div class="form-check"><input type="checkbox" name="vacuna_triple" class="form-check-input"> <label class="small">Triple</label></div>
-                            <div class="form-check"><input type="checkbox" name="vacuna_sextuple" class="form-check-input"> <label class="small">Sextuple</label></div>
-                        </div>
-                    </div>
-                    <div class="form-check mb-4 p-2 bg-light border rounded">
-                        <input type="checkbox" name="vacuna_antirrabica" class="form-check-input ms-1"> 
-                        <label class="ms-2 text-danger fw-bold small">💉 Vacuna Antirrábica Aplicada</label>
-                    </div>
-
                     <h6 class="mt-2 border-bottom pb-2">📍 Captura GPS</h6>
                     <div id="map-registro" class="mb-3"></div>
-                    <input type="hidden" name="latitud" id="latitud" value="0">
-                    <input type="hidden" name="longitud" id="longitud" value="0">
-
+                    <input type="hidden" name="latitud" id="latitud" value="0"><input type="hidden" name="longitud" id="longitud" value="0">
                     <button type="submit" class="btn btn-primary btn-lg w-100 shadow">💾 Guardar Registro</button>
                 </form>
             </div>
         </div>
 
-        <!-- LISTADO DE CANINOS -->
         <div class="col-lg-7">
             <div class="card card-form p-4 mb-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="m-0">📋 Listado de Caninos</h4>
-                    {% if current_user.rol == 'Admin' %}
-                    <div class="d-flex gap-2">
-                        <a href="/exportar" class="btn btn-outline-success btn-sm">🟢 Excel</a>
-                        <a href="/descargar_pdf" class="btn btn-outline-danger btn-sm">🔴 PDF</a>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <form method="GET" action="/" class="d-flex mb-4 gap-2">
-                    <input type="text" name="buscar" class="form-control" placeholder="Buscar..." value="{{ busqueda or '' }}">
-                    <button type="submit" class="btn btn-primary">Buscar</button>
-                </form>
-
+                <h4 class="mb-3">📋 Listado General</h4>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-dark text-center">
-                            <tr>
-                                <th>Foto</th><th>Animal</th><th>Situación</th><th>Salud</th><th>Acciones</th>
-                            </tr>
+                            <tr><th>Foto</th><th>Animal</th><th>Situación</th><th>Acciones</th></tr>
                         </thead>
                         <tbody class="text-center">
                             {% for perro in caninos.items %}
                             <tr>
                                 <td>
-                                    {% if perro.foto %}
-                                        <img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" width="45" height="45" class="rounded-circle shadow-sm" style="object-fit: cover;">
-                                    {% else %}
-                                        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center m-auto" style="width:45px; height:45px;">🐶</div>
-                                    {% endif %}
+                                    {% if perro.foto %}<img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" width="45" height="45" class="rounded-circle shadow-sm" style="object-fit: cover;">
+                                    {% else %}<div class="bg-light rounded-circle d-flex align-items-center justify-content-center m-auto" style="width:45px; height:45px;">🐶</div>{% endif %}
+                                </td>
+                                <td><div class="fw-bold">{{ perro.nombre or 'S/N' }}</div><div class="small text-muted">{{ perro.sector }}</div></td>
+                                <td>
+                                    <span class="badge {% if 'Hospital' in perro.situacion %}bg-danger{% elif 'Normal' in perro.situacion %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ perro.situacion }}</span>
+                                    {% if 'Hospital' in perro.situacion %}<div class="small text-danger fw-bold mt-1">Jaula: {{ perro.cubiculo_jaula }}</div>{% endif %}
                                 </td>
                                 <td>
-                                    <div class="fw-bold">{{ perro.nombre or 'S/N' }}</div>
-                                    <div class="small text-muted">{{ perro.sector }}</div>
-                                </td>
-                                <td>
-                                    <span class="badge {% if 'Normal' in perro.situacion %}bg-success{% else %}bg-danger{% endif %}">{{ perro.situacion }}</span>
-                                    <div class="text-muted mt-1" style="font-size: 0.65rem;">Por: {{ perro.reportado_por }}</div>
-                                </td>
-                                <td><span class="badge bg-secondary">{{ perro.estado_salud }}</span></td>
-                                <td>
-                                    <div class="d-flex gap-1 justify-content-center flex-wrap">
-                                        <!-- BOTÓN DE APADRINAMIENTO -->
-                                        {% if perro.estado_salud in ['Enfermo', 'En Tratamiento'] or perro.situacion in ['Situación de Hambre', 'Abandono / Callejero'] %}
-                                        <button type="button" class="btn btn-outline-danger btn-sm" title="Apadrinar / Donar" data-bs-toggle="modal" data-bs-target="#modalApadrinar" onclick="prepararApadrinamiento('{{ perro.nombre or 'S/N' }}')">💖</button>
+                                    <div class="d-flex gap-1 justify-content-center">
+                                        {% if perro.estado_salud in ['Enfermo','En Tratamiento'] or perro.situacion in ['Situación de Hambre','Abandono / Callejero'] %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" onclick="prepararApadrinamiento('{{ perro.nombre or \'S/N\' }}')">💖</button>
                                         {% endif %}
-
-                                        <!-- BOTÓN DE WHATSAPP -->
-                                        {% if perro.whatsapp_propietario %}
-                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}?text=Hola,%20te%20escribo%20del%20Censo%20Canino.%20Tenemos%20novedades%20sobre%20{{ perro.nombre or 'tu mascota' }}." target="_blank" class="btn btn-outline-success btn-sm" title="Contactar por WhatsApp">💬</a>
-                                        {% endif %}
-                                        
-                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm" title="Historial Clínico">🩺</a>
-                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm" title="Carnet QR">🪪</a>
-                                        
-                                        {% if current_user.rol == 'Admin' %}
-                                        <a href="/editar/{{ perro.id }}" class="btn btn-outline-warning btn-sm" title="Editar">✏️</a>
-                                        <a href="/eliminar/{{ perro.id }}" class="btn btn-outline-danger btn-sm" title="Eliminar" onclick="return confirm('¿Borrar registro?')">🗑️</a>
-                                        {% endif %}
+                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm">💬</a>
+                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm">🩺</a>
+                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm">🪪</a>
                                     </div>
                                 </td>
                             </tr>
-                            {% else %}
-                            <tr><td colspan="5" class="p-4 text-muted">No hay registros cargados.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                
-                {% if caninos.pages > 1 %}
-                <nav class="mt-3">
-                    <ul class="pagination pagination-sm justify-content-center">
-                        <li class="page-item {% if not caninos.has_prev %}disabled{% endif %}">
-                            <a class="page-link" href="{{ url_for('inicio', page=caninos.prev_num, buscar=busqueda) }}">Ant.</a>
-                        </li>
-                        <li class="page-item active"><span class="page-link">{{ caninos.page }} / {{ caninos.pages }}</span></li>
-                        <li class="page-item {% if not caninos.has_next %}disabled{% endif %}">
-                            <a class="page-link" href="{{ url_for('inicio', page=caninos.next_num, buscar=busqueda) }}">Sig.</a>
-                        </li>
-                    </ul>
-                </nav>
-                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- ============================================================ -->
-<!-- MODAL DE APADRINAMIENTO (PAGO MÓVIL / BINANCE)               -->
-<!-- ============================================================ -->
 <div class="modal fade" id="modalApadrinar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius: 15px; border: 2px solid #dc3545;">
-      <div class="modal-header bg-danger text-white" style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
-        <h5 class="modal-title fw-bold">💖 Apadrina a un Peludito</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
+      <div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">💖 Apadrina</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
       <div class="modal-body text-center p-4">
-        <h5 class="mb-3">Estás ayudando a: <br><strong id="nombrePerroModal" class="text-danger fs-3">Cargando...</strong></h5>
-        <p class="text-muted small mb-4">Tu aporte garantiza vacunas, desparasitación y alimento para este canino en situación de riesgo.</p>
-        
-        <div class="card bg-light mb-3 border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="fw-bold text-success mb-2">📱 Datos de Pago Móvil</h6>
-                <p class="mb-0 small"><b>Banco:</b> Mercantil (0105)<br><b>Cédula:</b> V-12.345.678<br><b>Teléfono:</b> 0414-1234567</p>
-            </div>
-        </div>
-
-        <div class="card bg-light border-0 shadow-sm">
-            <div class="card-body">
-                <h6 class="fw-bold text-warning mb-2">🟡 Binance Pay (USDT)</h6>
-                <p class="mb-0 small"><b>Pay ID:</b> 123456789<br><b>Correo:</b> fundacion@ejemplo.com</p>
-            </div>
-        </div>
-        
-        <p class="mt-3 mb-0 small text-danger fw-bold">¡Por favor envía el comprobante de pago al administrador!</p>
-      </div>
-      <div class="modal-footer justify-content-center border-0">
-        <button type="button" class="btn btn-secondary w-100 shadow-sm" data-bs-dismiss="modal">Cerrar</button>
+        <h5>Ayudando a: <strong id="nombrePerroModal" class="text-danger fs-3">...</strong></h5>
+        <div class="card bg-light mb-2 p-2 small text-start"><b>Pago Móvil:</b> Mercantil (0105)<br>CI: 12345678<br>Telf: 0414-1234567</div>
+        <div class="card bg-light p-2 small text-start"><b>Binance ID:</b> 123456789</div>
       </div>
     </div>
   </div>
@@ -332,106 +153,19 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
-    // Configuración del Mapa
     document.addEventListener("DOMContentLoaded", function() {
-        var mapReg = L.map('map-registro').setView([10.4806, -66.9036], 5); 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapReg);
+        var mapReg = L.map('map-registro').setView([10.4806, -66.9036], 5); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapReg);
         var markerReg = L.marker([10.4806, -66.9036], {draggable: true}).addTo(mapReg);
-        function updateFields(lat, lon) {
-            document.getElementById('latitud').value = lat;
-            document.getElementById('longitud').value = lon;
-        }
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function(pos) {
-                var lat = pos.coords.latitude; var lon = pos.coords.longitude;
-                mapReg.setView([lat, lon], 16); markerReg.setLatLng([lat, lon]);
-                updateFields(lat, lon);
-            });
-        }
-        markerReg.on('dragend', function() {
-            var p = markerReg.getLatLng(); updateFields(p.lat, p.lng);
-        });
-        mapReg.on('click', function(e) {
-            markerReg.setLatLng(e.latlng); updateFields(e.latlng.lat, e.latlng.lng);
-        });
-        setTimeout(function(){ mapReg.invalidateSize(); }, 500);
+        function updateFields(lat, lon) { document.getElementById('latitud').value = lat; document.getElementById('longitud').value = lon; }
+        if (navigator.geolocation) { navigator.geolocation.getCurrentPosition(function(pos) { var lat = pos.coords.latitude, lon = pos.coords.longitude; mapReg.setView([lat, lon], 16); markerReg.setLatLng([lat, lon]); updateFields(lat, lon); }); }
+        markerReg.on('dragend', function() { var p = markerReg.getLatLng(); updateFields(p.lat, p.lng); });
     });
-
-    // Función del Modal Apadrinar
-    function prepararApadrinamiento(nombreMascota) {
-        document.getElementById('nombrePerroModal').innerText = nombreMascota;
-    }
-
-    // ============================================================
-    // CONFIGURACIÓN PWA Y SINCRONIZACIÓN (CON SWEETALERT2)
-    // ============================================================
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js').then(reg => console.log('SW ok')).catch(err => console.log(err));
-        });
-    }
-
-    document.addEventListener("DOMContentLoaded", function() {
-        const formRegistro = document.querySelector('form[action="/"]');
-        if(formRegistro) {
-            formRegistro.addEventListener('submit', function(e) {
-                if (!navigator.onLine) {
-                    e.preventDefault(); 
-                    const formData = new FormData(formRegistro);
-                    const reporteData = {};
-                    formData.forEach((value, key) => {
-                        if(key !== 'foto') { reporteData[key] = value; }
-                    });
-                    
-                    let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
-                    offlineReports.push(reporteData);
-                    localStorage.setItem('offlineReports', JSON.stringify(offlineReports));
-                    
-                    // Alerta Inmersiva
-                    Swal.fire({
-                        title: '¡Modo Offline Activo! 📡',
-                        text: 'Estás sin conexión. El reporte se guardó localmente en tu teléfono y se enviará automáticamente al recuperar los datos.',
-                        icon: 'warning',
-                        confirmButtonColor: '#f59e0b'
-                    });
-                    
-                    formRegistro.reset();
-                }
-            });
-        }
+    function prepararApadrinamiento(nombre) { document.getElementById('nombrePerroModal').innerText = nombre; }
+    window.addEventListener('online', () => { 
+        let off = JSON.parse(localStorage.getItem('offlineReports')) || [];
+        if(off.length > 0) { fetch('/api/sincronizar_offline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(off) }).then(res => res.json()).then(d => { if(d.status==='exito'){ localStorage.removeItem('offlineReports'); Swal.fire('¡Sincronizado!', 'Datos cargados.', 'success').then(()=>location.reload()); } }); }
     });
-
-    window.addEventListener('online', sincronizarDatos);
-
-    function sincronizarDatos() {
-        let offlineReports = JSON.parse(localStorage.getItem('offlineReports')) || [];
-        if (offlineReports.length > 0) {
-            fetch('/api/sincronizar_offline', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(offlineReports)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if(data.status === 'exito') {
-                    localStorage.removeItem('offlineReports');
-                    // Alerta Inmersiva de Éxito
-                    Swal.fire({
-                        title: '¡Conexión Restablecida! 🌐',
-                        text: 'Todos los reportes guardados en modo offline han sido sincronizados con el servidor central exitosamente.',
-                        icon: 'success',
-                        confirmButtonColor: '#10b981',
-                        timer: 3500
-                    }).then(() => {
-                        window.location.reload(); 
-                    });
-                }
-            });
-        }
-    }
-    sincronizarDatos();
 </script>
 </body>
 </html>
