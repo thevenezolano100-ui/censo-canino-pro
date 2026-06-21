@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Receta Médica - {{ consulta.paciente.nombre }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #e9ecef; font-family: 'Times New Roman', serif; }
+        
+        /* Contenedor que simula una hoja de papel física */
+        .hoja-papel {
+            background-color: white;
+            width: 21cm; /* Ancho tamaño carta/A4 */
+            min-height: 29.7cm; /* Alto A4 */
+            margin: 40px auto;
+            padding: 2cm;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .header-medico { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+        .rx-symbol { font-size: 3rem; font-weight: bold; font-family: 'Arial', sans-serif; color: #000; margin-bottom: 15px;}
+        .firma-box { border-top: 1px solid #000; width: 250px; margin: 80px auto 0; padding-top: 5px; text-align: center; }
+
+        /* REGLAS PARA CUANDO SE ENVÍA A LA IMPRESORA */
+        @media print {
+            body { background-color: white; margin: 0; }
+            .hoja-papel { margin: 0; box-shadow: none; border: none; padding: 0; width: 100%; min-height: auto;}
+            .no-imprimir { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Botones de Control (No se imprimen) -->
+<div class="text-center mt-3 no-imprimir">
+    <button onclick="window.print()" class="btn btn-primary btn-lg shadow-sm me-2">🖨️ Imprimir o Guardar PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary btn-lg shadow-sm">Cerrar Ventana</button>
+</div>
+
+<!-- Documento de la Receta -->
+<div class="hoja-papel">
+    
+    <!-- Membrete de la Clínica / Fundación -->
+    <div class="header-medico text-center">
+        <h2 class="text-uppercase fw-bold m-0" style="font-family: 'Arial', sans-serif;">Censo Canino Táchira</h2>
+        <p class="m-0 text-muted">Red de Rescate y Atención Veterinaria Integral</p>
+        <p class="small m-0">Tel: 0414-1234567 | Dirección: Rubio, Edo. Táchira</p>
+    </div>
+
+    <!-- Datos del Paciente -->
+    <div class="row mb-4" style="font-family: 'Arial', sans-serif; font-size: 0.9rem;">
+        <div class="col-8">
+            <p class="m-0"><b>Paciente:</b> {{ consulta.paciente.nombre or 'Sin Nombre' }}</p>
+            <p class="m-0"><b>Especie/Raza:</b> Canino - {{ consulta.paciente.raza }}</p>
+            <p class="m-0"><b>Tutor/Propietario:</b> {{ consulta.paciente.nombre_propietario or 'Comunitario' }}</p>
+        </div>
+        <div class="col-4 text-end">
+            <p class="m-0"><b>Fecha:</b> {{ consulta.fecha.strftime('%d/%m/%Y') }}</p>
+            <p class="m-0"><b>Peso:</b> {{ consulta.peso or '--' }}</p>
+        </div>
+    </div>
+
+    <!-- Símbolo Médico R/ -->
+    <div class="rx-symbol">Rx,</div>
+
+    <!-- Cuerpo del Tratamiento -->
+    <div class="mb-5" style="min-height: 250px;">
+        <h5 class="fw-bold mb-3">Indicaciones:</h5>
+        
+        <!-- Mostramos el tratamiento respetando los saltos de línea que escribió el médico -->
+        <p style="white-space: pre-wrap; font-size: 1.1rem; line-height: 1.6;">{{ consulta.tratamiento }}</p>
+    </div>
+
+    <!-- Diagnóstico opcional en letra pequeña al pie -->
+    <div class="mb-5 text-muted small">
+        <p><b>Diagnóstico presuntivo:</b> {{ consulta.diagnostico }}</p>
+    </div>
+
+    <!-- Sello y Firma -->
+    <div class="firma-box">
+        <p class="fw-bold m-0 text-uppercase">M.V. Tratante</p>
+        <p class="small text-muted m-0">Sello / Firma</p>
+    </div>
+
+</div>
+
+</body>
+</html>
