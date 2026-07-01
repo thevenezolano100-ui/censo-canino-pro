@@ -2,132 +2,68 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Carnet de Identificación - {{ perro.nombre or 'S/N' }}</title>
+    <title>Carnet Digital Mascota</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { background: #e9ecef; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; padding-top: 40px; }
-        
-        /* Estilos de la Tarjeta (Proporciones de Credencial) */
-        .credencial {
-            width: 700px;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            overflow: hidden;
-            border: 2px solid #dee2e6;
-            position: relative;
-        }
-        
-        /* Encabezado del Carnet */
-        .credencial-header {
-            background: #0d6efd;
-            color: white;
-            text-align: center;
-            padding: 15px;
-            font-weight: bold;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        .credencial-body { padding: 20px; display: flex; gap: 20px; }
-        
-        /* Columna Izquierda: Foto y Datos */
-        .col-datos { flex: 1; border-right: 2px dashed #ccc; padding-right: 20px; }
-        .foto-perro { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; border: 4px solid #0d6efd; margin-bottom: 15px; }
-        .dato-titulo { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; margin-bottom: 0; font-weight: bold;}
-        .dato-valor { font-size: 1.1rem; font-weight: 600; color: #212529; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
-
-        /* Columna Derecha: Vacunas y QR */
-        .col-medica { flex: 1; display: flex; flex-direction: column; justify-content: space-between;}
-        .lista-vacunas { list-style: none; padding: 0; margin: 0; font-size: 0.9rem; }
-        .lista-vacunas li { margin-bottom: 5px; }
-        .box-qr { text-align: center; margin-top: 10px; }
-        .qr-img { width: 100px; height: 100px; border: 2px solid #000; padding: 5px; border-radius: 8px; }
-
-        /* Área de Firma */
-        .area-firma { text-align: center; margin-top: 25px; }
-        .linea-firma { width: 80%; border-top: 2px solid #000; margin: 0 auto 5px auto; }
-        .texto-firma { font-size: 0.8rem; color: #6c757d; font-weight: bold;}
-
-        /* Ocultar elementos al imprimir */
-        @media print {
-            body { background: white; padding-top: 0; }
-            .credencial { box-shadow: none; border: 1px solid #000; }
-            .no-print { display: none !important; }
-        }
+        body { background-color: #f8f9fa; padding-top: 30px; }
+        .carnet-box { max-width: 450px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 2px solid #0d6efd; overflow: hidden; }
+        .carnet-header { background: linear-gradient(135deg, #0d6efd, #004fbc); color: white; padding: 20px; text-center: center; }
+        .qr-area { background: #fdfdfd; padding: 20px; border-radius: 15px; display: inline-block; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
+        @media print { .no-print { display: none !important; } }
     </style>
 </head>
 <body>
 
-<div>
-    <!-- Controles (No se imprimen) -->
-    <div class="mb-3 text-center no-print">
-        <button onclick="window.print()" class="btn btn-primary btn-lg shadow-sm me-2">🖨️ Imprimir Carnet</button>
-        <a href="/" class="btn btn-secondary btn-lg shadow-sm">Volver</a>
+<div class="text-center mb-4 no-print">
+    <button onclick="window.print()" class="btn btn-primary shadow-sm fw-bold">🖨️ Imprimir Carnet Físico</button>
+    <a href="/" class="btn btn-secondary shadow-sm">Volver al Panel</a>
+</div>
+
+<div class="carnet-box">
+    <div class="carnet-header text-center">
+        <h4 class="fw-bold m-0">🪪 IDENTIFICACIÓN OFICIAL Canina</h4>
+        <small class="opacity-75">Sistema Integrado de Control Epidemiológico</small>
     </div>
-
-    <!-- Carnet Físico -->
-    <div class="credencial">
-        <div class="credencial-header">
-            <h4 class="m-0">🐾 Identificación Oficial Canina</h4>
-        </div>
+    
+    <div class="p-4 text-center">
+        {% if dog.foto %}
+        <img src="{{ url_for('static', filename='uploads/' + dog.foto) }}" class="rounded-circle shadow mb-3" style="width: 110px; height: 110px; object-fit: cover; border: 3px solid #0d6efd;">
+        {% else %}
+        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3 shadow" style="width: 110px; height: 110px; font-size: 3rem;">🐶</div>
+        {% endif %}
         
-        <div class="credencial-body">
-            <!-- Izquierda: Foto e Identificación -->
-            <div class="col-datos text-center">
-                {% if perro.foto %}
-                    <img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" class="foto-perro" alt="Foto del Canino">
-                {% else %}
-                    <div class="foto-perro d-flex align-items-center justify-content-center bg-light mx-auto mb-3" style="font-size: 3rem;">🐶</div>
-                {% endif %}
-                
-                <p class="dato-titulo">Nombre del Canino</p>
-                <p class="dato-valor text-primary fs-4">{{ perro.nombre or 'Sin Nombre' }}</p>
-                
-                <div class="row text-start mt-3">
-                    <div class="col-6">
-                        <p class="dato-titulo">Raza</p><p class="dato-valor fs-6">{{ perro.raza }}</p>
-                    </div>
-                    <div class="col-6">
-                        <p class="dato-titulo">Sexo</p><p class="dato-valor fs-6">{{ perro.sexo }}</p>
-                    </div>
-                    <div class="col-12">
-                        <p class="dato-titulo">Sector / Residencia</p><p class="dato-valor fs-6">{{ perro.sector }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Derecha: Datos Médicos y Código QR -->
-            <div class="col-medica">
-                <div>
-                    <h6 class="fw-bold text-danger border-bottom border-danger pb-1">🩺 Esquema de Vacunación</h6>
-                    <ul class="lista-vacunas mt-2">
-                        <li>{{ '✅' if perro.vacuna_parvovirus else '⬜' }} Parvovirus</li>
-                        <li>{{ '✅' if perro.vacuna_moquillo else '⬜' }} Moquillo</li>
-                        <li>{{ '✅' if perro.vacuna_triple else '⬜' }} Triple</li>
-                        <li>{{ '✅' if perro.vacuna_sextuple else '⬜' }} Sextuple</li>
-                        <li class="fw-bold text-danger">{{ '✅' if perro.vacuna_antirrabica else '⬜' }} Antirrábica</li>
-                    </ul>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-end mt-3">
-                    <!-- Código QR generado dinámicamente -->
-                    <div class="box-qr">
-                        <p class="dato-titulo mb-1" style="font-size: 0.6rem;">Escanear para Emergencia</p>
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={{ request.url_root }}rescate/{{ perro.id }}" class="qr-img" alt="QR Rescate">
-                    </div>
-
-                    <!-- Firma -->
-                    <div class="area-firma w-50">
-                        <div class="linea-firma"></div>
-                        <span class="texto-firma">Firma del Responsable<br>{{ perro.nombre_propietario or 'Comunidad' }}</span>
-                    </div>
-                </div>
-            </div>
+        <h3 class="fw-bold text-dark mb-1 text-uppercase">{{ dog.nombre or 'Sin Nombre' }}</h3>
+        <span class="badge bg-secondary mb-4 fs-6">{{ dog.raza }} | {{ dog.edad }}</span>
+        
+        <div class="row text-start bg-light p-3 rounded mb-4 border small">
+            <div class="col-6"><b>ID Sistema:</b> #{{ dog.id }}</div>
+            <div class="col-6"><b>Sexo:</b> {{ dog.sexo }}</div>
+            <div class="col-12 mt-1"><b>Sector/Barrio:</b> {{ dog.sector }}</div>
+            <div class="col-12 mt-1"><b>Responsable:</b> {{ dog.nombre_propietario or 'Comunitario' }}</div>
+            <div class="col-12 mt-1"><b>Contacto de Emergencia:</b> {{ dog.whatsapp_propietario }}</div>
         </div>
+
+        <h6 class="fw-bold text-danger mb-2">🚨 ESCANEAR EN CASO DE EXTRAVÍO</h6>
+        <div class="qr-area mb-2">
+            <div id="qrcode"></div>
+        </div>
+        <p class="text-muted style='font-size:0.75rem;'">Permite reportar la ubicación exacta del animal al tutor en tiempo real.</p>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Genera de forma nativa y dinámica la URL del código QR apuntando a la ruta de rescate
+    var publicUrl = window.location.origin + "/rescate/" + "{{ dog.id }}";
+    new QRCode(document.getElementById("qrcode"), {
+        text: publicUrl,
+        width: 150,
+        height: 150,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+    });
+</script>
 </body>
 </html>
