@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Control Reproductivo - {{ perro.nombre or 'S/N' }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
+        .card-custom { border: none; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .evento-item { border-left: 5px solid #6f42c1; background: #fff; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); transition: all 0.3s ease; }
+    </style>
+</head>
+<body>
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <h2 class="fw-bold m-0" style="color: #6f42c1;">🧬 Ficha Reproductiva: {{ perro.nombre or 'S/N' }} ({{ perro.especie }})</h2>
+        <a href="/" class="btn btn-secondary shadow-sm">Volver al Panel</a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-5 mb-4">
+            <div class="card card-custom p-4 bg-white sticky-top" style="top: 20px;">
+                <h5 class="mb-4 fw-bold" style="color: #6f42c1;">➕ Registrar Evento</h5>
+                <form method="POST" action="/reproduccion/{{ perro.id }}">
+                    <div class="mb-3">
+                        <label class="small fw-bold text-muted">Tipo de Evento</label>
+                        <select name="tipo_evento" class="form-select border-primary" required>
+                            <option value="Monta Natural">Monta Natural</option>
+                            <option value="Inseminación Artificial">Inseminación Artificial</option>
+                            <option value="Confirmación de Preñez">Confirmación de Preñez (Eco)</option>
+                            <option value="Parto Exitoso">Parto Exitoso</option>
+                            <option value="Aborto / Pérdida">Aborto / Pérdida</option>
+                            <option value="Destete">Destete de Crías</option>
+                        </select>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-12">
+                            <label class="small fw-bold text-muted">Fecha del Evento</label>
+                            <input type="date" name="fecha_evento" class="form-control" required>
+                            <div class="form-text text-danger">La fecha probable de parto se calculará sola según la especie ({{ perro.especie }}).</div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="small fw-bold text-muted">Notas y Observaciones Clínicas</label>
+                        <textarea name="notas" class="form-control" rows="3" placeholder="Semental utilizado, número de crías..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-lg w-100 fw-bold shadow-sm text-white" style="background-color: #6f42c1;">💾 Guardar Registro</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card card-custom p-4 bg-white" style="min-height: 500px;">
+                <h5 class="mb-4 fw-bold text-secondary">📜 Trazabilidad del Ciclo</h5>
+                
+                {% for r in perro.registros_reproductivos|reverse %}
+                <div class="evento-item">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge bg-dark fs-6 shadow-sm">📅 Evento: {{ r.fecha_evento.strftime('%d/%m/%Y') }}</span>
+                        <span class="badge {% if 'Finalizado' in r.estado %}bg-success{% elif 'Complicación' in r.estado %}bg-danger{% else %}bg-primary{% endif %} fs-6 shadow-sm">{{ r.estado }}</span>
+                    </div>
+                    <h5 class="text-danger fw-bold mb-2">{{ r.tipo_evento }}</h5>
+                    {% if r.fecha_esperada_parto %}
+                    <p class="mb-2 text-primary fw-bold">🍼 Parto Esperado (Automatizado): {{ r.fecha_esperada_parto.strftime('%d/%m/%Y') }}</p>
+                    {% endif %}
+                    <div class="p-3 mt-2 bg-light rounded" style="border: 1px solid #e2e8f0;">
+                        <p class="mb-0 text-dark" style="white-space: pre-wrap; font-size: 0.95rem;"><b>Observaciones:</b><br>{{ r.notas }}</p>
+                    </div>
+                    {% if current_user.rol == 'Admin' %}
+                    <div class="d-flex justify-content-end mt-3 border-top pt-3">
+                        <a href="/reproduccion/eliminar/{{ r.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Borrar?')">🗑️ Eliminar Registro</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted mt-5 pt-5">
+                    <h1 style="font-size: 5rem; opacity: 0.5;">🧬</h1><h5 class="mt-3">Sin historial reproductivo</h5>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

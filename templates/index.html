@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Censo Canino Pro</title>
+    <title>Censo y Control Clínico Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link class="no-imprimir" rel="manifest" href="/manifest.json">
@@ -25,12 +25,11 @@
 
 <nav class="navbar-custom">
     <div class="container d-flex justify-content-between align-items-center flex-wrap">
-        <h3 class="m-0 mb-2 mb-md-0">🐾 Censo Canino <span class="badge bg-light text-primary fs-6">PRO</span></h3>
+        <h3 class="m-0 mb-2 mb-md-0">🐾 Sistema Clínico <span class="badge bg-light text-primary fs-6">PRO</span></h3>
         <div class="d-flex gap-2 flex-wrap align-items-center">
             <span id="networkStatus" class="badge bg-success status-badge me-2">🟢 En Línea</span>
             <button class="btn btn-dark shadow-sm btn-sm fw-bold" onclick="abrirEscanerQR()">📷 Buscar por QR</button>
             
-            <!-- BLINDAJE: Solo Admin ve el botón del Hospital -->
             {% if current_user.rol == 'Admin' %}
             <a href="/hospitalizacion" class="btn btn-danger shadow-sm btn-sm fw-bold">🏥 Hospitalizados</a>
             <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm" style="background: #6f42c1; border: none;">👥 Usuarios</a>
@@ -62,27 +61,41 @@
     {% endwith %}
 
     <div class="row">
-        <!-- FORMULARIO DE REGISTRO -->
+        <!-- FORMULARIO DE REGISTRO MULTIESPECIE -->
         <div class="col-lg-5">
             <div class="card card-form p-4 sticky-top" style="top: 20px;">
-                <h4 class="mb-4 text-primary">📝 Registrar / Reportar Canino</h4>
+                <h4 class="mb-4 text-primary">📝 Registrar / Ingresar Paciente</h4>
                 <form id="formCenso" method="POST" action="/" enctype="multipart/form-data">
+                    
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6"><input type="text" name="nombre" class="form-control" placeholder="Nombre"></div>
-                        <div class="col-md-6"><input type="text" name="raza" class="form-control" placeholder="Raza" required></div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">Especie</label>
+                            <select name="especie" class="form-select border-primary" required>
+                                <option value="Canino">Canino</option>
+                                <option value="Felino">Felino</option>
+                                <option value="Bovino">Bovino</option>
+                                <option value="Equino">Equino</option>
+                                <option value="Porcino">Porcino</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">Nombre/ID</label>
+                            <input type="text" name="nombre" class="form-control" placeholder="Ej: Luna / #042">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small fw-bold text-muted">Raza/Cruce</label>
+                            <input type="text" name="raza" class="form-control" required>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
                         <label class="fw-bold small text-danger">⚠️ Situación Clínica / Estado</label>
                         <select name="situacion" class="form-select border-danger" required>
-                            <option value="Censo Normal">Censo Normal (Sano / En Casa)</option>
-                            
-                            <!-- BLINDAJE: Solo Admin puede mandar directo al Hospital al crear -->
+                            <option value="Censo Normal">Registro Normal (Sano / En Finca / Casa)</option>
                             {% if current_user.rol == 'Admin' %}
                             <option value="Hospitalizado">🏥 REQUERIR HOSPITALIZACIÓN CRÍTICA</option>
                             {% endif %}
-                            
-                            <option value="Situación de Hambre">Situación de Hambre</option>
+                            <option value="Situación de Hambre">Situación de Hambre / Riesgo</option>
                             <option value="Abandono / Callejero">Abandono / Callejero</option>
                         </select>
                     </div>
@@ -90,11 +103,11 @@
                     <div class="row g-3 mb-3">
                         <div class="col-md-4"><input type="text" name="edad" class="form-control" placeholder="Edad" required></div>
                         <div class="col-md-4"><select name="sexo" class="form-select"><option value="Macho">Macho</option><option value="Hembra">Hembra</option></select></div>
-                        <div class="col-md-4"><input type="text" name="cubiculo_jaula" class="form-control text-center border-danger" placeholder="Jaula (Ej: B-3)"></div>
+                        <div class="col-md-4"><input type="text" name="cubiculo_jaula" class="form-control text-center border-danger" placeholder="Corral/Jaula"></div>
                     </div>
                     
                     <div class="row g-2 mb-3">
-                        <div class="col-md-6"><input type="text" name="nombre_propietario" class="form-control" placeholder="Dueño"></div>
+                        <div class="col-md-6"><input type="text" name="nombre_propietario" class="form-control" placeholder="Dueño o Finca"></div>
                         <div class="col-md-6"><input type="text" name="whatsapp_propietario" class="form-control" placeholder="WhatsApp" required></div>
                     </div>
                     
@@ -104,10 +117,10 @@
                     </div>
                     <input type="file" name="foto" class="form-control mb-3" accept="image/*">
 
-                    <h6 class="mt-4 border-bottom pb-2 text-muted">🩺 Datos Sanitarios Iniciales</h6>
+                    <h6 class="mt-4 border-bottom pb-2 text-muted">🩺 Controles Preventivos Base</h6>
                     <div class="row mb-3">
                         <div class="col-6">
-                            <div class="form-check"><input type="checkbox" name="esterilizado" class="form-check-input"> <label class="small">Esterilizado</label></div>
+                            <div class="form-check"><input type="checkbox" name="esterilizado" class="form-check-input"> <label class="small">Esterilizado / Castrado</label></div>
                             <div class="form-check"><input type="checkbox" name="desparasitado" class="form-check-input"> <label class="small">Desparasitado</label></div>
                             <div class="form-check"><input type="checkbox" name="vacuna_parvovirus" class="form-check-input"> <label class="small">Parvovirus</label></div>
                         </div>
@@ -130,11 +143,11 @@
             </div>
         </div>
 
-        <!-- TABLA GENERAL -->
+        <!-- TABLA GENERAL DE PACIENTES -->
         <div class="col-lg-7">
             <div class="card card-form p-4 mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4 class="m-0">📋 Listado General</h4>
+                    <h4 class="m-0">📋 Padrón de Pacientes</h4>
                     <div class="d-flex gap-2">
                         <a href="/exportar" class="btn btn-outline-success btn-sm fw-bold">🟢 Excel</a>
                         <a href="/descargar_pdf" target="_blank" class="btn btn-outline-danger btn-sm fw-bold">🔴 PDF</a>
@@ -142,29 +155,38 @@
                 </div>
 
                 <form method="GET" action="/" class="d-flex mb-4 gap-2">
-                    <input type="text" name="buscar" class="form-control form-control-sm" placeholder="Buscar por nombre, dueño o sector..." value="{{ busqueda or '' }}">
+                    <input type="text" name="buscar" class="form-control form-control-sm" placeholder="Buscar por nombre, finca o sector..." value="{{ busqueda or '' }}">
                     <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
                 </form>
                 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-dark text-center">
-                            <tr><th>Foto</th><th>Animal</th><th>Situación</th><th>Acciones</th></tr>
+                            <tr><th>Foto</th><th>Identificación</th><th>Clínica / Reproductivo</th><th>Acciones</th></tr>
                         </thead>
                         <tbody class="text-center">
                             {% for perro in caninos.items %}
                             <tr>
                                 <td>
                                     {% if perro.foto %}<img src="{{ url_for('static', filename='uploads/' + perro.foto) }}" width="45" height="45" class="rounded-circle shadow-sm" style="object-fit: cover;">
-                                    {% else %}<div class="bg-light rounded-circle d-flex align-items-center justify-content-center m-auto" style="width:45px; height:45px;">🐶</div>{% endif %}
+                                    {% else %}<div class="bg-light rounded-circle d-flex align-items-center justify-content-center m-auto" style="width:45px; height:45px;">🐾</div>{% endif %}
                                 </td>
-                                <td><div class="fw-bold">{{ perro.nombre or 'S/N' }}</div><div class="small text-muted">{{ perro.sector }}</div></td>
-                                <td><span class="badge {% if 'Hospital' in perro.situacion %}bg-danger{% elif 'Normal' in perro.situacion %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ perro.situacion }}</span></td>
+                                <td>
+                                    <div class="fw-bold text-uppercase">{{ perro.nombre or 'S/N' }}</div>
+                                    <div class="small text-muted">{{ perro.especie }} - {{ perro.raza }}</div>
+                                </td>
+                                <td>
+                                    <span class="badge {% if 'Hospital' in perro.situacion %}bg-danger{% elif 'Normal' in perro.situacion %}bg-success{% else %}bg-warning text-dark{% endif %} d-block mb-1">{{ perro.situacion }}</span>
+                                    
+                                    <!-- CRUZAMIENTO MÓDULO REPRODUCTIVO: ALERTA VISUAL -->
+                                    {% if perro.fase_reproductiva in ['Gestante', 'Posible Gestación', 'Lactante'] %}
+                                    <span class="badge bg-danger d-block" style="background-color: #6f42c1 !important;">🧬 {{ perro.fase_reproductiva }}</span>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <div class="d-flex gap-1 justify-content-center flex-wrap">
-                                        
                                         {% if perro.estado_salud in ['Enfermo','En Tratamiento'] or perro.situacion in ['Situación de Hambre','Abandono / Callejero'] %}
-                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" data-nombre="{{ perro.nombre or 'S/N' }}" onclick="prepararApadrinamiento(this)" title="Apadrinar">💖</button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" data-nombre="{{ perro.nombre or 'S/N' }}" onclick="prepararApadrinamiento(this)" title="Apadrinar / Reportar">💖</button>
                                         {% endif %}
                                         
                                         <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm" title="Contactar">💬</a>
@@ -186,7 +208,6 @@
                     </table>
                 </div>
 
-                <!-- PAGINACIÓN -->
                 {% if caninos.pages > 1 %}
                 <nav class="mt-3">
                     <ul class="pagination pagination-sm justify-content-center">
@@ -204,10 +225,10 @@
 <div class="modal fade" id="modalApadrinar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius: 15px; border: 2px solid #dc3545;">
-      <div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">💖 Apadrina</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header bg-danger text-white"><h5 class="modal-title fw-bold">💖 Apoyo / Alerta</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
       <div class="modal-body text-center p-4">
-        <h5>Ayudando a: <strong id="nombrePerroModal" class="text-danger fs-3">...</strong></h5>
-        <div class="card bg-light p-2 small text-start"><b>Pago Móvil:</b> Mercantil (0105)<br>CI: 12345678<br>Telf: 0414-1234567</div>
+        <h5>Animal en riesgo: <strong id="nombrePerroModal" class="text-danger fs-3">...</strong></h5>
+        <div class="card bg-light p-2 small text-start"><b>Pago Móvil Central:</b> Mercantil (0105)<br>CI: 12345678<br>Telf: 0414-1234567</div>
       </div>
     </div>
   </div>
@@ -216,7 +237,7 @@
 <div class="modal fade" id="modalLectorQR" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">📷 Escanear Carnet QR</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarEscaner()"></button></div>
+      <div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold">📷 Escanear QR</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarEscaner()"></button></div>
       <div class="modal-body p-0"><div id="reader"></div></div>
     </div>
   </div>
