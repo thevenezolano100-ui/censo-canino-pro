@@ -46,9 +46,13 @@
                 <div class="bitacora-scroll mb-4 border">
                     {% for nota in p.notas_internado|reverse %}
                     <div class="pb-2 mb-2 border-bottom">
-                        <div class="d-flex justify-content-between text-muted small fw-bold">
+                        <div class="d-flex justify-content-between text-muted small fw-bold align-items-center">
                             <span>📅 {{ nota.fecha.strftime('%d/%m - %H:%M') }}</span>
-                            <span class="text-danger">🌡️ {{ nota.temperatura }} | ❤️ {{ nota.frecuencia_card }}</span>
+                            <div class="d-flex gap-2 align-items-center">
+                                <span class="text-danger">🌡️ {{ nota.temperatura }} | ❤️ {{ nota.frecuencia_card }}</span>
+                                <!-- BOTÓN PARA BORRAR NOTA (SOLO ADMIN) -->
+                                <a href="/hospitalizacion/eliminar_nota/{{ nota.id }}" class="text-danger text-decoration-none" title="Borrar Nota" onclick="return confirm('¿Borrar esta nota médica?')">🗑️</a>
+                            </div>
                         </div>
                         <p class="m-0 mt-1 text-dark">{{ nota.evolucion }}</p>
                         <div class="text-end text-muted" style="font-size:0.7rem;">M.V: {{ nota.veterinario }}</div>
@@ -58,6 +62,7 @@
                     {% endfor %}
                 </div>
 
+                <!-- FORMULARIO PARA REGISTRAR REPORTE (SOLO ADMIN) -->
                 <form method="POST" action="/hospitalizacion/nota/{{ p.id }}" class="bg-light p-3 rounded border">
                     <h6 class="fw-bold text-success mb-2">➕ Registrar Reporte Clínico</h6>
                     <div class="row g-2 mb-2">
@@ -67,7 +72,7 @@
                     <textarea name="evolucion" class="form-control form-control-sm mb-2" rows="2" placeholder="Evolución clínica..." required></textarea>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success btn-sm w-100 fw-bold">Guardar Reporte</button>
-                        <a href="/hospitalizacion/alta/{{ p.id }}" class="btn btn-outline-danger btn-sm w-50 fw-bold">🩺 Dar Alta</a>
+                        <a href="/hospitalizacion/alta/{{ p.id }}" class="btn btn-outline-danger btn-sm w-50 fw-bold" onclick="return confirm('¿Dar de alta a este paciente?')">🩺 Dar Alta</a>
                     </div>
                 </form>
             </div>

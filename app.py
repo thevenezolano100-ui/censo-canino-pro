@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.secret_key = 'clave_secreta_censo_master_v14'
 
 # ==========================================
-# RUTAS ABSOLUTAS Y BASE DE DATOS (v14)
+# RUTAS ABSOLUTAS Y BASE DE DATOS
 # ==========================================
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
@@ -70,8 +70,7 @@ class ManualDoc(db.Model):
     id = db.Column(db.Integer, primary_key=True); archivo = db.Column(db.String(200), nullable=False)
 
 class Medicamento(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False); stock = db.Column(db.Integer, default=0); unidad = db.Column(db.String(50), nullable=False)
+    id = db.Column(db.Integer, primary_key=True); nombre = db.Column(db.String(100), nullable=False); stock = db.Column(db.Integer, default=0); unidad = db.Column(db.String(50), nullable=False)
 
 class Consulta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -101,7 +100,6 @@ class RegistroReproductivo(db.Model):
     tipo_evento = db.Column(db.String(100), nullable=False) 
     fecha_evento = db.Column(db.Date, nullable=False)
     fecha_esperada_parto = db.Column(db.Date, nullable=True) 
-    notes = db.Column(db.Text)
     notas = db.Column(db.Text)
     estado = db.Column(db.String(50), default='Activo (En Progreso)') 
     canino_id = db.Column(db.Integer, db.ForeignKey('canino.id'), nullable=False)
@@ -131,7 +129,7 @@ with app.app_context():
         db.session.commit()
 
 # ==========================================
-# GESTIÓN PWA OFFLINE Y CUENTAS
+# OFFLINE PWA Y AUTENTICACIÓN
 # ==========================================
 @app.route('/sw.js')
 def sw():
@@ -182,7 +180,7 @@ def login():
 def logout(): logout_user(); return redirect(url_for('login'))
 
 # ==========================================
-# NÚCLEO CRUD CENTRAL
+# RUTAS CORE
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
 @login_required
@@ -194,11 +192,17 @@ def inicio():
         except: lat = 0
         try: lon = float(request.form.get('longitud') or 0)
         except: lon = 0
+        
+        # Seguridad extra: Si un Ciudadano manipula el HTML para enviar "Hospitalizado", el servidor lo bloquea.
+        situacion_recibida = request.form.get('situacion', 'Censo Normal')
+        if situacion_recibida == 'Hospitalizado' and current_user.rol != 'Admin':
+            situacion_recibida = 'Censo Normal'
+
         nuevo = Canino(
             foto=n_f, nombre=request.form.get('nombre'), raza=request.form.get('raza'), edad=request.form.get('edad'), 
             sexo=request.form.get('sexo'), estado_tenencia=request.form.get('estado_tenencia'), nombre_propietario=request.form.get('nombre_propietario'), 
             whatsapp_propietario=request.form.get('whatsapp_propietario'), estado_salud=request.form.get('estado_salud'), sector=request.form.get('sector'), 
-            latitud=lat, longitud=lon, situacion=request.form.get('situacion', 'Censo Normal'), reportado_por=current_user.nombre, cubiculo_jaula=request.form.get('cubiculo_jaula', 'N/A'),
+            latitud=lat, longitud=lon, situacion=situacion_recibida, reportado_por=current_user.nombre, cubiculo_jaula=request.form.get('cubiculo_jaula', 'N/A'),
             esterilizado=request.form.get('esterilizado')=='on', desparasitado=request.form.get('desparasitado')=='on', vacuna_parvovirus=request.form.get('vacuna_parvovirus')=='on', 
             vacuna_moquillo=request.form.get('vacuna_moquillo')=='on', vacuna_triple=request.form.get('vacuna_triple')=='on', vacuna_sextuple=request.form.get('vacuna_sextuple')=='on', vacuna_antirrabica=request.form.get('vacuna_antirrabica')=='on'
         )
@@ -220,6 +224,8 @@ def editar(id):
         p.sexo = request.form.get('sexo'); p.estado_tenencia = request.form.get('estado_tenencia'); p.nombre_propietario = request.form.get('nombre_propietario')
         p.whatsapp_propietario = request.form.get('whatsapp_propietario'); p.estado_salud = request.form.get('estado_salud'); p.sector = request.form.get('sector')
         p.situacion = request.form.get('situacion'); p.cubiculo_jaula = request.form.get('cubiculo_jaula', 'N/A')
+        p.esterilizado = request.form.get('esterilizado')=='on'; p.desparasitado = request.form.get('desparasitado')=='on'; p.vacuna_parvovirus = request.form.get('vacuna_parvovirus')=='on'
+        p.vacuna_moquillo = request.form.get('vacuna_moquillo')=='on'; p.vacuna_triple = request.form.get('vacuna_triple')=='on'; p.vacuna_sextuple = request.form.get('vacuna_sextuple')=='on'; p.vacuna_antirrabica = request.form.get('vacuna_antirrabica')=='on'
         db.session.commit(); flash('Expediente actualizado.', 'success'); return redirect(url_for('inicio'))
     return render_template('editar.html', perro=p)
 
@@ -229,8 +235,39 @@ def eliminar(id):
     if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     db.session.delete(Canino.query.get_or_404(id)); db.session.commit(); flash('Canino eliminado.', 'success'); return redirect(url_for('inicio'))
 
+# ============================================================
+# MÓDULO HOSPITALIZACIÓN: BLINDADO SOLO PARA ADMIN
+# ============================================================
+@app.route('/hospitalizacion', methods=['GET'])
+@login_required
+def hospitalizacion_pizarra(): 
+    if current_user.rol != 'Admin': 
+        flash('Acceso Denegado. Solo el personal médico Administrador puede acceder a la Unidad de Cuidados.', 'danger')
+        return redirect(url_for('inicio'))
+    return render_template('hospitalizacion.html', pacientes=Canino.query.filter_by(situacion='Hospitalizado').all())
+
+@app.route('/hospitalizacion/nota/<int:id>', methods=['POST'])
+@login_required
+def agregar_nota_hospitalizacion(id):
+    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
+    db.session.add(NotaHospitalizacion(temperatura=request.form.get('temperatura'), frecuencia_card=request.form.get('frecuencia_card'), evolucion=request.form.get('evolucion'), veterinario=current_user.nombre, canino_id=id))
+    db.session.commit(); flash('Evolución guardada.', 'success'); return redirect(url_for('hospitalizacion_pizarra'))
+
+@app.route('/hospitalizacion/eliminar_nota/<int:id>')
+@login_required
+def eliminar_nota_hospitalizacion(id):
+    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
+    nota = NotaHospitalizacion.query.get_or_404(id)
+    db.session.delete(nota); db.session.commit(); flash('Nota clínica eliminada.', 'success'); return redirect(url_for('hospitalizacion_pizarra'))
+
+@app.route('/hospitalizacion/alta/<int:id>')
+@login_required
+def dar_alta_hospitalizacion(id): 
+    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
+    p = Canino.query.get_or_404(id); p.situacion = 'Censo Normal'; p.estado_salud = 'Sano'; db.session.commit(); flash('Alta médica ejecutada con éxito.', 'success'); return redirect(url_for('hospitalizacion_pizarra'))
+
 # ==========================================
-# MÓDULO REPRODUCTIVO
+# RESTO DE RUTAS OPERATIVAS (SIN CAMBIOS)
 # ==========================================
 @app.route('/reproduccion/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -238,16 +275,13 @@ def reproduccion(id):
     p = Canino.query.get_or_404(id)
     if request.method == 'POST':
         try:
-            tipo = request.form.get('tipo_evento')
-            f_evento_str = request.form.get('fecha_evento', '').strip()
+            tipo = request.form.get('tipo_evento'); f_evento_str = request.form.get('fecha_evento', '').strip()
             f_evento = datetime.strptime(f_evento_str, '%Y-%m-%d').date() if f_evento_str else date.today()
             f_parto_str = request.form.get('fecha_esperada_parto', '').strip()
             f_parto = datetime.strptime(f_parto_str, '%Y-%m-%d').date() if f_parto_str else None
-            
             nuevo_registro = RegistroReproductivo(tipo_evento=tipo, fecha_evento=f_evento, fecha_esperada_parto=f_parto, notas=request.form.get('notas'), estado=request.form.get('estado', 'Activo (En Progreso)'), canino_id=p.id)
-            db.session.add(nuevo_registro); db.session.commit()
-            flash('Registro reproductivo guardado.', 'success'); return redirect(url_for('reproduccion', id=p.id))
-        except: db.session.rollback(); flash('Error de procesamiento de fechas.', 'danger')
+            db.session.add(nuevo_registro); db.session.commit(); flash('Registro reproductivo guardado.', 'success'); return redirect(url_for('reproduccion', id=p.id))
+        except: db.session.rollback(); flash('Error de procesamiento.', 'danger')
     return render_template('reproduccion.html', perro=p)
 
 @app.route('/reproduccion/eliminar/<int:id>')
@@ -256,9 +290,6 @@ def eliminar_reproduccion(id):
     r = RegistroReproductivo.query.get_or_404(id); p_id = r.canino_id
     db.session.delete(r); db.session.commit(); flash('Evento reproductivo removido.', 'success'); return redirect(url_for('reproduccion', id=p_id))
 
-# ==========================================
-# AUTOMATIZACIONES (CITAS Y ALERTAS)
-# ==========================================
 @app.route('/citas', methods=['GET', 'POST'])
 @login_required
 def gestion_citas():
@@ -303,29 +334,29 @@ def aceptar_alerta(id):
 @login_required
 def descartar_alerta(id): db.session.delete(Vacuna.query.get_or_404(id)); db.session.commit(); return redirect(url_for('alertas'))
 
-# ============================================================
-# SANEAMIENTO EXCELSO: RASTREO PÚBLICO QR (TOLERANTE A FORM/JSON) 🛠️
-# ============================================================
 @app.route('/rescate/<int:id>', methods=['GET', 'POST'])
 def rescate(id):
     p = Canino.query.get_or_404(id)
     if request.method == 'POST':
-        # Tolera tanto el envío de JSON asíncrono como de formularios clásicos
         d = request.get_json(silent=True) or request.form
         try:
-            p.latitud = float(d.get('lat') or d.get('latitud') or 0)
-            p.longitud = float(d.get('lon') or d.get('longitud') or 0)
-            p.situacion = '¡ALERTA QR!'
-            db.session.commit()
-            return jsonify({"status": "exito"})
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({"status": "error", "message": str(e)}), 400
+            p.latitud = float(d.get('lat') or d.get('latitud') or 0); p.longitud = float(d.get('lon') or d.get('longitud') or 0)
+            p.situacion = '¡ALERTA QR!'; db.session.commit(); return jsonify({"status": "exito"})
+        except Exception as e: db.session.rollback(); return jsonify({"status": "error"}), 400
     return render_template('rescate.html', perro=p)
 
-# ==========================================
-# COMPLEMENTOS GENERALES DE ATENCIÓN
-# ==========================================
+@app.route('/usuarios')
+@login_required
+def gestion_usuarios():
+    if current_user.rol != 'Admin': flash('Acceso denegado.', 'danger'); return redirect(url_for('inicio'))
+    return render_template('usuarios.html', usuarios=Usuario.query.all())
+
+@app.route('/usuarios/cambiar_clave/<int:id>', methods=['POST'])
+@login_required
+def cambiar_clave_usuario(id):
+    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
+    u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit(); return redirect(url_for('gestion_usuarios'))
+
 @app.route('/inventario', methods=['GET', 'POST'])
 @login_required
 def inventario():
@@ -363,31 +394,6 @@ def eliminar_consulta(id): c = Consulta.query.get_or_404(id); c_id = c.canino_id
 @login_required
 def receta_medica(consulta_id): return render_template('receta.html', consulta=Consulta.query.get_or_404(consulta_id))
 
-@app.route('/hospitalizacion', methods=['GET'])
-@login_required
-def hospitalizacion_pizarra(): return render_template('hospitalizacion.html', pacientes=Canino.query.filter_by(situacion='Hospitalizado').all())
-
-@app.route('/hospitalizacion/nota/<int:id>', methods=['POST'])
-@login_required
-def agregar_nota_hospitalizacion(id):
-    db.session.add(NotaHospitalizacion(temperatura=request.form.get('temperatura'), frecuencia_card=request.form.get('frecuencia_card'), evolucion=request.form.get('evolucion'), veterinario=current_user.nombre, canino_id=id))
-    db.session.commit(); flash('Evolución guardada.', 'success'); return redirect(url_for('hospitalizacion_pizarra'))
-
-@app.route('/hospitalizacion/alta/<int:id>')
-@login_required
-def dar_alta_hospitalizacion(id): p = Canino.query.get_or_404(id); p.situacion = 'Censo Normal'; p.estado_salud = 'Sano'; db.session.commit(); return redirect(url_for('hospitalizacion_pizarra'))
-
-@app.route('/usuarios')
-@login_required
-def gestion_usuarios():
-    if current_user.rol != 'Admin': flash('Acceso denegado.', 'danger'); return redirect(url_for('inicio'))
-    return render_template('usuarios.html', usuarios=Usuario.query.all())
-
-@app.route('/usuarios/cambiar_clave/<int:id>', methods=['POST'])
-@login_required
-def cambiar_clave_usuario(id):
-    u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit(); return redirect(url_for('gestion_usuarios'))
-
 @app.route('/reportes')
 @login_required
 def reportes():
@@ -423,8 +429,7 @@ def videos(): return render_template('videos.html', video=Video.query.first())
 def subir_video():
     f = request.files.get('video_archivo')
     if f and f.filename:
-        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom))
-        v_v = Video.query.first()
+        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); v_v = Video.query.first()
         if v_v: db.session.delete(v_v)
         db.session.add(Video(archivo=nom)); db.session.commit()
     return redirect(url_for('videos'))
@@ -438,8 +443,7 @@ def manual(): return render_template('manual.html', documento=ManualDoc.query.fi
 def subir_manual():
     f = request.files.get('manual_archivo')
     if f and f.filename:
-        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom))
-        m_v = ManualDoc.query.first()
+        nom = secure_filename(f.filename); f.save(os.path.join(app.config['UPLOAD_FOLDER'], nom)); m_v = ManualDoc.query.first()
         if m_v: db.session.delete(m_v)
         db.session.add(ManualDoc(archivo=nom)); db.session.commit()
     return redirect(url_for('manual'))

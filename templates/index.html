@@ -23,16 +23,19 @@
 </head>
 <body>
 
-<!-- BARRA DE NAVEGACIÓN -->
 <nav class="navbar-custom">
     <div class="container d-flex justify-content-between align-items-center flex-wrap">
         <h3 class="m-0 mb-2 mb-md-0">🐾 Censo Canino <span class="badge bg-light text-primary fs-6">PRO</span></h3>
         <div class="d-flex gap-2 flex-wrap align-items-center">
-            <!-- Indicador de Red -->
             <span id="networkStatus" class="badge bg-success status-badge me-2">🟢 En Línea</span>
-            
             <button class="btn btn-dark shadow-sm btn-sm fw-bold" onclick="abrirEscanerQR()">📷 Buscar por QR</button>
+            
+            <!-- BLINDAJE: Solo Admin ve el botón del Hospital -->
+            {% if current_user.rol == 'Admin' %}
             <a href="/hospitalizacion" class="btn btn-danger shadow-sm btn-sm fw-bold">🏥 Hospitalizados</a>
+            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm" style="background: #6f42c1; border: none;">👥 Usuarios</a>
+            {% endif %}
+
             <a href="/inventario" class="btn btn-secondary shadow-sm btn-sm">📦 Kardex</a>
             <a href="/mapa_general" class="btn btn-light shadow-sm btn-sm">🗺️ Mapa</a>
             <a href="/alertas" class="btn btn-warning shadow-sm btn-sm text-dark">🔔 Alertas</a>
@@ -40,11 +43,6 @@
             <a href="/reportes" class="btn btn-success shadow-sm btn-sm">📊 Reportes</a>
             <a href="/videos" class="btn btn-info text-white shadow-sm btn-sm">🎬 Videos</a>
             <a href="/manual" class="btn btn-primary border shadow-sm btn-sm">📖 Manual</a>
-            
-            {% if current_user.rol == 'Admin' %}
-            <a href="/usuarios" class="btn btn-dark shadow-sm btn-sm" style="background: #6f42c1; border: none;">👥 Usuarios</a>
-            {% endif %}
-            
             <a href="/logout" class="btn btn-outline-light ms-md-2 btn-sm">Salir</a>
         </div>
     </div>
@@ -78,7 +76,12 @@
                         <label class="fw-bold small text-danger">⚠️ Situación Clínica / Estado</label>
                         <select name="situacion" class="form-select border-danger" required>
                             <option value="Censo Normal">Censo Normal (Sano / En Casa)</option>
+                            
+                            <!-- BLINDAJE: Solo Admin puede mandar directo al Hospital al crear -->
+                            {% if current_user.rol == 'Admin' %}
                             <option value="Hospitalizado">🏥 REQUERIR HOSPITALIZACIÓN CRÍTICA</option>
+                            {% endif %}
+                            
                             <option value="Situación de Hambre">Situación de Hambre</option>
                             <option value="Abandono / Callejero">Abandono / Callejero</option>
                         </select>
@@ -158,20 +161,16 @@
                                 <td><div class="fw-bold">{{ perro.nombre or 'S/N' }}</div><div class="small text-muted">{{ perro.sector }}</div></td>
                                 <td><span class="badge {% if 'Hospital' in perro.situacion %}bg-danger{% elif 'Normal' in perro.situacion %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ perro.situacion }}</span></td>
                                 <td>
-                                    <!-- ÁREA DE BOTONES COMPLETAMENTE RESTAURADA Y CON EL NUEVO BOTÓN 🧬 -->
                                     <div class="d-flex gap-1 justify-content-center flex-wrap">
                                         
                                         {% if perro.estado_salud in ['Enfermo','En Tratamiento'] or perro.situacion in ['Situación de Hambre','Abandono / Callejero'] %}
                                         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" data-nombre="{{ perro.nombre or 'S/N' }}" onclick="prepararApadrinamiento(this)" title="Apadrinar">💖</button>
                                         {% endif %}
                                         
-                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm" title="Contactar por WhatsApp">💬</a>
-                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm" title="Historial Clínico">🩺</a>
-                                        
-                                        <!-- NUEVO BOTÓN: Control Reproductivo -->
+                                        <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm" title="Contactar">💬</a>
+                                        <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm" title="Historial Médico">🩺</a>
                                         <a href="/reproduccion/{{ perro.id }}" class="btn btn-outline-danger btn-sm" style="color: #6f42c1; border-color: #6f42c1;" title="Control Reproductivo">🧬</a>
-                                        
-                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm" title="Carnet y Código QR">🪪</a>
+                                        <a href="/carnet/{{ perro.id }}" class="btn btn-outline-info btn-sm" title="Carnet y QR">🪪</a>
                                         
                                         {% if current_user.rol == 'Admin' %}
                                         <a href="/editar/{{ perro.id }}" class="btn btn-outline-warning btn-sm" title="Editar Expediente">✏️</a>
@@ -202,7 +201,6 @@
     </div>
 </div>
 
-<!-- MODALES (Apadrinar y Escáner QR) -->
 <div class="modal fade" id="modalApadrinar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius: 15px; border: 2px solid #dc3545;">
@@ -224,7 +222,6 @@
   </div>
 </div>
 
-<!-- SCRIPTS: MAPAS Y MODO OFFLINE -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
