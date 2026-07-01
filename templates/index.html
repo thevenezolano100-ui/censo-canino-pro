@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Censo y Control Clínico Pro</title>
+    <title>Sistema Clínico Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link class="no-imprimir" rel="manifest" href="/manifest.json">
@@ -36,7 +36,7 @@
             {% endif %}
 
             <a href="/inventario" class="btn btn-secondary shadow-sm btn-sm">📦 Kardex</a>
-            <a href="/mapa_general" class="btn btn-light shadow-sm btn-sm">🗺️ Mapa</a>
+            <a href="/mapa_general" class="btn btn-light shadow-sm btn-sm">🗺️ Radar Global</a>
             <a href="/alertas" class="btn btn-warning shadow-sm btn-sm text-dark">🔔 Alertas</a>
             <a href="/citas" class="btn btn-warning shadow-sm btn-sm text-dark">📅 Citas</a>
             <a href="/reportes" class="btn btn-success shadow-sm btn-sm">📊 Reportes</a>
@@ -61,31 +61,19 @@
     {% endwith %}
 
     <div class="row">
-        <!-- FORMULARIO DE REGISTRO MULTIESPECIE -->
         <div class="col-lg-5">
             <div class="card card-form p-4 sticky-top" style="top: 20px;">
                 <h4 class="mb-4 text-primary">📝 Registrar / Ingresar Paciente</h4>
                 <form id="formCenso" method="POST" action="/" enctype="multipart/form-data">
-                    
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
                             <label class="small fw-bold text-muted">Especie</label>
                             <select name="especie" class="form-select border-primary" required>
-                                <option value="Canino">Canino</option>
-                                <option value="Felino">Felino</option>
-                                <option value="Bovino">Bovino</option>
-                                <option value="Equino">Equino</option>
-                                <option value="Porcino">Porcino</option>
+                                <option value="Canino">Canino</option><option value="Felino">Felino</option><option value="Bovino">Bovino</option><option value="Equino">Equino</option><option value="Porcino">Porcino</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
-                            <label class="small fw-bold text-muted">Nombre/ID</label>
-                            <input type="text" name="nombre" class="form-control" placeholder="Ej: Luna / #042">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="small fw-bold text-muted">Raza/Cruce</label>
-                            <input type="text" name="raza" class="form-control" required>
-                        </div>
+                        <div class="col-md-4"><label class="small fw-bold text-muted">Nombre/ID</label><input type="text" name="nombre" class="form-control" placeholder="Ej: Luna"></div>
+                        <div class="col-md-4"><label class="small fw-bold text-muted">Raza/Cruce</label><input type="text" name="raza" class="form-control" required></div>
                     </div>
                     
                     <div class="mb-3">
@@ -120,7 +108,7 @@
                     <h6 class="mt-4 border-bottom pb-2 text-muted">🩺 Controles Preventivos Base</h6>
                     <div class="row mb-3">
                         <div class="col-6">
-                            <div class="form-check"><input type="checkbox" name="esterilizado" class="form-check-input"> <label class="small">Esterilizado / Castrado</label></div>
+                            <div class="form-check"><input type="checkbox" name="esterilizado" class="form-check-input"> <label class="small">Esterilizado</label></div>
                             <div class="form-check"><input type="checkbox" name="desparasitado" class="form-check-input"> <label class="small">Desparasitado</label></div>
                             <div class="form-check"><input type="checkbox" name="vacuna_parvovirus" class="form-check-input"> <label class="small">Parvovirus</label></div>
                         </div>
@@ -135,7 +123,7 @@
                         <label class="ms-2 text-danger fw-bold small">💉 Vacuna Antirrábica Aplicada</label>
                     </div>
 
-                    <h6 class="mt-2 border-bottom pb-2">📍 Captura GPS</h6>
+                    <h6 class="mt-2 border-bottom pb-2">📍 Captura GPS Base</h6>
                     <div id="map-registro" class="mb-3"></div>
                     <input type="hidden" name="latitud" id="latitud" value="0"><input type="hidden" name="longitud" id="longitud" value="0">
                     <button type="submit" class="btn btn-primary btn-lg w-100 shadow">💾 Guardar Registro</button>
@@ -143,7 +131,6 @@
             </div>
         </div>
 
-        <!-- TABLA GENERAL DE PACIENTES -->
         <div class="col-lg-7">
             <div class="card card-form p-4 mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -162,7 +149,7 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead class="table-dark text-center">
-                            <tr><th>Foto</th><th>Identificación</th><th>Clínica / Reproductivo</th><th>Acciones</th></tr>
+                            <tr><th>Foto</th><th>Identificación</th><th>Clínica / Reproductivo</th><th>Acciones Operativas</th></tr>
                         </thead>
                         <tbody class="text-center">
                             {% for perro in caninos.items %}
@@ -177,8 +164,6 @@
                                 </td>
                                 <td>
                                     <span class="badge {% if 'Hospital' in perro.situacion %}bg-danger{% elif 'Normal' in perro.situacion %}bg-success{% else %}bg-warning text-dark{% endif %} d-block mb-1">{{ perro.situacion }}</span>
-                                    
-                                    <!-- CRUZAMIENTO MÓDULO REPRODUCTIVO: ALERTA VISUAL -->
                                     {% if perro.fase_reproductiva in ['Gestante', 'Posible Gestación', 'Lactante'] %}
                                     <span class="badge bg-danger d-block" style="background-color: #6f42c1 !important;">🧬 {{ perro.fase_reproductiva }}</span>
                                     {% endif %}
@@ -188,6 +173,8 @@
                                         {% if perro.estado_salud in ['Enfermo','En Tratamiento'] or perro.situacion in ['Situación de Hambre','Abandono / Callejero'] %}
                                         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalApadrinar" data-nombre="{{ perro.nombre or 'S/N' }}" onclick="prepararApadrinamiento(this)" title="Apadrinar / Reportar">💖</button>
                                         {% endif %}
+                                        
+                                        <button type="button" class="btn btn-outline-dark btn-sm" onclick="verUbicacion({{ perro.latitud }}, {{ perro.longitud }}, '{{ perro.nombre }}', '{{ perro.situacion }}')" title="Ver Ubicación en Mapa">📍</button>
                                         
                                         <a href="https://wa.me/{{ perro.whatsapp_propietario }}" target="_blank" class="btn btn-outline-success btn-sm" title="Contactar">💬</a>
                                         <a href="/historial/{{ perro.id }}" class="btn btn-outline-primary btn-sm" title="Historial Médico">🩺</a>
@@ -222,6 +209,23 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalUbicacion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border-radius: 15px; border: 2px solid #212529;">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">📍 Radar Táctico de Ubicación</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="contenedorMapaIndividual" style="height: 400px; width: 100%;"></div>
+            </div>
+            <div class="modal-footer bg-light p-2">
+                <p class="small text-muted m-0 w-100 text-center">Coordenadas exactas obtenidas del GPS al momento del registro o escaneo QR.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalApadrinar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content" style="border-radius: 15px; border: 2px solid #dc3545;">
@@ -246,6 +250,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    // LÓGICA DEL MAPA PRINCIPAL (Formulario)
     document.addEventListener("DOMContentLoaded", function() {
         try {
             var mapReg = L.map('map-registro').setView([10.4806, -66.9036], 5);
@@ -257,8 +262,26 @@
         } catch(e) { console.log("Mapas offline."); }
     });
 
+    // LÓGICA DEL RADAR INDIVIDUAL (Ubicación por Paciente)
+    let mapInd;
+    function verUbicacion(lat, lon, nombre, situacion) {
+        // Limpiamos el contenedor para forzar un reinicio limpio del mapa de Leaflet en Bootstrap Modals
+        document.getElementById('contenedorMapaIndividual').innerHTML = "<div id='mapReal' style='height:100%; width:100%;'></div>";
+        var modal = new bootstrap.Modal(document.getElementById('modalUbicacion'));
+        modal.show();
+        
+        // Esperamos a que el modal esté 100% visible antes de pintar el mapa
+        document.getElementById('modalUbicacion').addEventListener('shown.bs.modal', function () {
+            if(mapInd) { mapInd.remove(); }
+            mapInd = L.map('mapReal').setView([lat, lon], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInd);
+            L.marker([lat, lon]).addTo(mapInd).bindPopup("<b>" + nombre + "</b><br>" + situacion).openPopup();
+        }, {once: true});
+    }
+
     function prepararApadrinamiento(btn) { document.getElementById('nombrePerroModal').innerText = btn.getAttribute('data-nombre'); }
 
+    // SENSOR DE RED Y MODO OFFLINE PWA
     const statusBadge = document.getElementById('networkStatus');
     function actualizarIndicadorRed() {
         if (navigator.onLine) { statusBadge.innerText = "🟢 En Línea"; statusBadge.className = "badge bg-success status-badge me-2"; sincronizarDatos(); } 
@@ -293,6 +316,7 @@
 
     if ('serviceWorker' in navigator) window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js'); });
 
+    // ESCANER QR NATIVO
     let html5QrcodeScanner;
     function abrirEscanerQR() {
         var modal = new bootstrap.Modal(document.getElementById('modalLectorQR')); modal.show();

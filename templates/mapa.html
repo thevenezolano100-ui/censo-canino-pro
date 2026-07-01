@@ -1,115 +1,72 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <title>Mapa Epidemiológico y de Calor</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Global de Ubicación</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif;}
-        #mapa-full { height: calc(100vh - 60px); width: 100%; background: #e0e0e0; }
-        .nav-map { height: 60px; background: #212529; color: white; display: flex; justify-content: space-between; align-items: center; padding: 0 20px;}
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', sans-serif;}
+        #mapaGlobal { height: 85vh; width: 100%; border-radius: 15px; border: 3px solid #dee2e6; }
+        /* Icono rojo personalizado para alertas QR */
+        .alerta-qr-icon { filter: hue-rotate(150deg) saturate(3) brightness(1.2); }
     </style>
 </head>
 <body>
-    <!-- Barra de navegación superior -->
-    <div class="nav-map shadow">
-        <h4 class="m-0">🗺️ Mapa de Monitoreo Epidemiológico</h4>
-        <div>
-            <!-- Botón que ejecuta la función JavaScript para encender/apagar el calor -->
-            <button class="btn btn-outline-danger btn-sm me-2 fw-bold" onclick="toggleCalor()">🔥 Activar Mapa de Calor</button>
-            <a href="/" class="btn btn-outline-light btn-sm">Volver al Panel</a>
-        </div>
+<div class="container-fluid mt-3 mb-4 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="text-primary fw-bold m-0">🗺️ Radar Global de Pacientes</h2>
+        <a href="/" class="btn btn-secondary shadow-sm fw-bold">Volver al Panel Central</a>
     </div>
     
-    <!-- Contenedor donde se dibujará el mapa -->
-    <div id="mapa-full"></div>
-    
-    <!-- 1. Librería base de Leaflet -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- 2. Nueva Librería: Plugin para generar los gradientes de calor -->
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-    
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            // Inicializamos el mapa
-            var map = L.map('mapa-full').setView([10.48, -66.90], 5);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 18,
-                attribution: '© OpenStreetMap'
-            }).addTo(map);
+    <div class="card shadow-sm p-2">
+        <div id="mapaGlobal"></div>
+    </div>
+    <div class="mt-2 text-center text-muted small fw-bold">
+        🔵 Censo Normal | 🔴 Alerta de Extravío (Escaneado por QR en la calle)
+    </div>
+</div>
 
-            var marcadoresGrupo = new L.featureGroup();
-            var puntosCalor = []; // Lista vacía que guardará solo a los enfermos
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Inicializa el mapa centrado en el Estado Táchira
+        var map = L.map('mapaGlobal').setView([7.7667, -72.2333], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'Sistema de Geolocalización Pro'
+        }).addTo(map);
 
-            // Ciclo que trae los datos desde Python (Flask)
-            {% for p in perros %}
-                var lat = {{ p.latitud }};
-                var lon = {{ p.longitud }};
-                var salud = "{{ p.estado_salud }}";
-                var situacion = "{{ p.situacion }}";
+        // Bucle Jinja que inyecta las coordenadas de TODOS los animales en el Javascript del navegador
+        {% for p in perros %}
+            {% if p.latitud != 0 and p.longitud != 0 %}
                 
-                // Definimos el color del punto normal
-                var color = "green";
-                if (salud === 'Enfermo') color = "red";
-                else if (salud === 'En Tratamiento') color = "orange";
+                // Determinamos si el animal es una alerta QR
+                var esAlerta = "{{ p.situacion }}" === "¡ALERTA QR!";
                 
-                // Dibujamos el punto normal y lo guardamos
-                var m = L.circleMarker([lat, lon], { radius: 8, fillColor: color, color: "#000", weight: 1, fillOpacity: 0.9 });
-                m.bindPopup("<b>{{ p.nombre or 'S/N' }}</b><br>Salud: " + salud + "<br>Situación: " + situacion);
-                marcadoresGrupo.addLayer(m);
+                var markerColorClass = esAlerta ? "alerta-qr-icon" : "";
+                
+                // Icono por defecto de Leaflet, pero aplicamos filtro CSS si es alerta
+                var myIcon = L.icon({
+                    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    className: markerColorClass
+                });
 
-                // LÓGICA EPIDEMIOLÓGICA: Si está enfermo o en tratamiento, lo añadimos a la lista de calor
-                // El número '1' al final de la coordenada indica la intensidad del foco
-                if (salud === 'Enfermo' || salud === 'En Tratamiento') {
-                    puntosCalor.push([lat, lon, 1]); 
-                }
-            {% endfor %}
+                var popupContent = "<b>🐾 {{ p.nombre or 'S/N' }}</b><br>" +
+                                   "<b>Especie:</b> {{ p.especie }}<br>" +
+                                   "<b>Dueño:</b> {{ p.nombre_propietario or 'Comunitario' }}<br>" +
+                                   "<b>Estado:</b> <span style='color: " + (esAlerta ? 'red' : 'green') + "'>{{ p.situacion }}</span><br>" +
+                                   "<a href='https://wa.me/{{ p.whatsapp_propietario }}' target='_blank'>Contactar Dueño</a>";
 
-            // Agregamos todos los puntos normales al mapa al cargar la página
-            map.addLayer(marcadoresGrupo);
-            
-            // Creamos la "Capa Térmica" usando los datos filtrados
-            // Parámetros ajustables: radius (tamaño de mancha) y blur (difuminado)
-            var capaCalor = L.heatLayer(puntosCalor, {
-                radius: 40,      
-                blur: 25,        
-                maxZoom: 15,     
-                gradient: {0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red'} 
-            });
-
-            // Guardamos variables globales para usarlas en el botón de alternar
-            window.capaCalorActiva = false;
-            window.capaCalor = capaCalor;
-            window.map = map;
-
-            // Centramos la cámara automáticamente donde estén todos los perritos
-            if (marcadoresGrupo.getLayers().length > 0) { 
-                map.fitBounds(marcadoresGrupo.getBounds(), {padding: [50, 50]}); 
-            }
-            
-            setTimeout(function(){ map.invalidateSize(); }, 500);
-        });
-
-        // Función JavaScript para el botón superior
-        function toggleCalor() {
-            var btn = document.querySelector("button[onclick='toggleCalor()']");
-            
-            if (window.capaCalorActiva) {
-                // Si el calor está encendido, lo apagamos
-                window.map.removeLayer(window.capaCalor);
-                window.capaCalorActiva = false;
-                btn.innerHTML = "🔥 Activar Mapa de Calor";
-                btn.classList.replace("btn-danger", "btn-outline-danger");
-            } else {
-                // Si está apagado, encendemos la capa térmica
-                window.map.addLayer(window.capaCalor);
-                window.capaCalorActiva = true;
-                btn.innerHTML = "❌ Ocultar Mapa de Calor";
-                btn.classList.replace("btn-outline-danger", "btn-danger");
-            }
-        }
-    </script>
+                L.marker([{{ p.latitud }}, {{ p.longitud }}], {icon: myIcon}).addTo(map)
+                 .bindPopup(popupContent);
+            {% endif %}
+        {% endfor %}
+    });
+</script>
 </body>
 </html>

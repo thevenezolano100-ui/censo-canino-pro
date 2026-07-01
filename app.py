@@ -35,7 +35,7 @@ login_manager.login_message_category = "danger"
 @app.errorhandler(Exception)
 def handle_exception(e):
     if isinstance(e, HTTPException): return e.get_response()
-    return f"""<div style="padding: 40px; background: #fff3f3; color: #dc3545;"><h1>⚠️ Error</h1><pre>{traceback.format_exc()}</pre></div>""", 500
+    return f"""<div style="padding: 40px; background: #fff3f3; color: #dc3545;"><h1>⚠️ Error Interno</h1><pre>{traceback.format_exc()}</pre></div>""", 500
 
 # ==========================================
 # MODELOS DE BASE DE DATOS
@@ -79,7 +79,6 @@ class RegistroReproductivo(db.Model):
     fecha_esperada_parto = db.Column(db.Date, nullable=True); notas = db.Column(db.Text); estado = db.Column(db.String(50), default='Activo (En Progreso)') 
     canino_id = db.Column(db.Integer, db.ForeignKey('canino.id'), nullable=False)
 
-# MANTENEMOS EL NOMBRE DE LA CLASE "Canino" PARA NO ROMPER EL SISTEMA, PERO AÑADIMOS "ESPECIE" PARA MULTIUSO
 class Canino(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     consultas = db.relationship('Consulta', backref='paciente', lazy=True, cascade="all, delete-orphan")
@@ -88,10 +87,8 @@ class Canino(db.Model):
     vacunas_historial = db.relationship('Vacuna', backref='paciente', lazy=True, cascade="all, delete-orphan")
     registros_reproductivos = db.relationship('RegistroReproductivo', backref='madre', lazy=True, cascade="all, delete-orphan")
     
-    # NUEVOS CAMPOS ESCALABLES
     especie = db.Column(db.String(50), default='Canino')
     fase_reproductiva = db.Column(db.String(50), default='Ninguna') 
-    
     foto = db.Column(db.String(200)); nombre = db.Column(db.String(100)); raza = db.Column(db.String(100)); edad = db.Column(db.String(50))
     sexo = db.Column(db.String(20)); estado_tenencia = db.Column(db.String(50)); nombre_propietario = db.Column(db.String(100))
     estado_salud = db.Column(db.String(100)); sector = db.Column(db.String(100)); whatsapp_propietario = db.Column(db.String(20))
@@ -213,7 +210,6 @@ def eliminar(id):
 # ============================================================
 # LÓGICA MULTIESPECIE Y CONTROL REPRODUCTIVO MATEMÁTICO 🧬
 # ============================================================
-# Días promedio de gestación por especie para cálculo automático
 DIAS_GESTACION = {'Canino': 63, 'Felino': 65, 'Porcino': 114, 'Bovino': 283, 'Equino': 340}
 
 @app.route('/reproduccion/<int:id>', methods=['GET', 'POST'])
@@ -228,29 +224,19 @@ def reproduccion(id):
             f_parto = None
             estado = request.form.get('estado', 'Activo (En Progreso)')
 
-            # AUTOMATIZACIÓN DE CRUCE DE DATOS: Modifica la fase del animal globalmente
             if tipo in ['Monta Natural', 'Inseminación Artificial']:
                 dias = DIAS_GESTACION.get(p.especie, 63)
                 f_parto = f_evento + timedelta(days=dias)
                 p.fase_reproductiva = 'Posible Gestación'
-            elif tipo == 'Confirmación de Preñez':
-                p.fase_reproductiva = 'Gestante'
-            elif tipo == 'Parto Exitoso':
-                p.fase_reproductiva = 'Lactante'
-                estado = 'Finalizado (Parto Exitoso)'
-            elif tipo in ['Aborto / Pérdida', 'Destete']:
-                p.fase_reproductiva = 'Ninguna'
-                estado = 'Finalizado'
+            elif tipo == 'Confirmación de Preñez': p.fase_reproductiva = 'Gestante'
+            elif tipo == 'Parto Exitoso': p.fase_reproductiva = 'Lactante'; estado = 'Finalizado (Parto Exitoso)'
+            elif tipo in ['Aborto / Pérdida', 'Destete']: p.fase_reproductiva = 'Ninguna'; estado = 'Finalizado'
 
-            nuevo_registro = RegistroReproductivo(
-                tipo_evento=tipo, fecha_evento=f_evento, fecha_esperada_parto=f_parto,
-                notas=request.form.get('notas'), estado=estado, canino_id=p.id
-            )
+            nuevo_registro = RegistroReproductivo(tipo_evento=tipo, fecha_evento=f_evento, fecha_esperada_parto=f_parto, notas=request.form.get('notas'), estado=estado, canino_id=p.id)
             db.session.add(nuevo_registro); db.session.commit()
             flash('Evento reproductivo sincronizado en el expediente del paciente.', 'success')
             return redirect(url_for('reproduccion', id=p.id))
-        except Exception as e:
-            db.session.rollback(); flash('Error al procesar el ciclo.', 'danger')
+        except Exception as e: db.session.rollback(); flash('Error al procesar el ciclo.', 'danger')
     return render_template('reproduccion.html', perro=p)
 
 @app.route('/reproduccion/eliminar/<int:id>')
@@ -299,7 +285,7 @@ def gestion_citas():
 @login_required
 def aceptar_cita(id):
     c = Cita.query.get_or_404(id); c.estado = 'Completada'
-    db.session.add(Consulta(peso="N/A", sintomas=f"Cita Programada - {c.motivo}", diagnostico="Evaluación Concluida", tratamiento=f"Cita concluida con éxito.", canino_id=c.canino_id))
+    db.session.add(Consulta(peso="N/A", sintomas=f"Cita Programada - {c.motivo}", diagnostico="Evaluación Concluida", tratamiento=f"Cita del {c.fecha_hora.strftime('%d/%m/%Y')} concluida con éxito.", canino_id=c.canino_id))
     db.session.commit(); flash('Cita completada. Historial actualizado.', 'success'); return redirect(url_for('gestion_citas'))
 
 @app.route('/citas/rechazar/<int:id>')
@@ -325,14 +311,25 @@ def aceptar_alerta(id):
     elif 'Triple' in alerta.tipo: perro.vacuna_triple = True
     elif 'Sextuple' in alerta.tipo: perro.vacuna_sextuple = True
     db.session.add(Consulta(peso="N/A", sintomas="Alerta de Inmunización", diagnostico=f"Biológico: {alerta.tipo}", tratamiento=f"Vacuna aplicada.", canino_id=perro.id))
-    db.session.delete(alerta); db.session.commit(); flash('Vacuna aplicada en el historial.', 'success'); return redirect(url_for('alertas'))
+    db.session.delete(alerta); db.session.commit(); flash('Vacuna registrada en historial.', 'success'); return redirect(url_for('alertas'))
 
 @app.route('/alertas/descartar/<int:id>')
 @login_required
 def descartar_alerta(id): db.session.delete(Vacuna.query.get_or_404(id)); db.session.commit(); return redirect(url_for('alertas'))
 
+@app.route('/rescate/<int:id>', methods=['GET', 'POST'])
+def rescate(id):
+    p = Canino.query.get_or_404(id)
+    if request.method == 'POST':
+        d = request.get_json(silent=True) or request.form
+        try:
+            p.latitud = float(d.get('lat') or d.get('latitud') or 0); p.longitud = float(d.get('lon') or d.get('longitud') or 0)
+            p.situacion = '¡ALERTA QR!'; db.session.commit(); return jsonify({"status": "exito"})
+        except Exception as e: db.session.rollback(); return jsonify({"status": "error"}), 400
+    return render_template('rescate.html', perro=p)
+
 # ==========================================
-# USUARIOS, INVENTARIO E HISTORIAL MÉDICO
+# USUARIOS E INVENTARIO
 # ==========================================
 @app.route('/usuarios')
 @login_required
@@ -343,6 +340,7 @@ def gestion_usuarios():
 @app.route('/usuarios/cambiar_clave/<int:id>', methods=['POST'])
 @login_required
 def cambiar_clave_usuario(id):
+    if current_user.rol != 'Admin': return redirect(url_for('inicio'))
     u = Usuario.query.get_or_404(id); u.password = generate_password_hash(request.form.get('nueva_password') or '123456'); db.session.commit(); return redirect(url_for('gestion_usuarios'))
 
 @app.route('/inventario', methods=['GET', 'POST'])
@@ -383,19 +381,8 @@ def eliminar_consulta(id): c = Consulta.query.get_or_404(id); c_id = c.canino_id
 def receta_medica(consulta_id): return render_template('receta.html', consulta=Consulta.query.get_or_404(consulta_id))
 
 # ==========================================
-# REPORTES, RASTREO Y EXPORTACIÓN
+# REPORTES, MAPA GLOBAL Y EXPORTACIÓN
 # ==========================================
-@app.route('/rescate/<int:id>', methods=['GET', 'POST'])
-def rescate(id):
-    p = Canino.query.get_or_404(id)
-    if request.method == 'POST':
-        d = request.get_json(silent=True) or request.form
-        try:
-            p.latitud = float(d.get('lat') or d.get('latitud') or 0); p.longitud = float(d.get('lon') or d.get('longitud') or 0)
-            p.situacion = '¡ALERTA QR!'; db.session.commit(); return jsonify({"status": "exito"})
-        except Exception as e: db.session.rollback(); return jsonify({"status": "error"}), 400
-    return render_template('rescate.html', perro=p)
-
 @app.route('/reportes')
 @login_required
 def reportes():
@@ -416,7 +403,9 @@ def descargar_pdf(): return render_template('pdf.html', caninos=Canino.query.ord
 
 @app.route('/mapa_general')
 @login_required
-def mapa_general(): return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
+def mapa_general(): 
+    # Muestra en el mapa de control a todos los animales que tengan registro GPS válido
+    return render_template('mapa.html', perros=Canino.query.filter(Canino.latitud != 0).all())
 
 @app.route('/carnet/<int:id>')
 @login_required
