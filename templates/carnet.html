@@ -2,16 +2,22 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Carnet Digital Mascota</title>
+    <title>Carnet Digital Mascota - {{ dog.nombre or 'S/N' }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Cargamos la librería para pintar códigos QR locales de forma segura -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { background-color: #f8f9fa; padding-top: 30px; }
+        body { background-color: #f8f9fa; padding-top: 30px; font-family: 'Segoe UI', sans-serif; }
         .carnet-box { max-width: 450px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 2px solid #0d6efd; overflow: hidden; }
-        .carnet-header { background: linear-gradient(135deg, #0d6efd, #004fbc); color: white; padding: 20px; text-center: center; }
+        .carnet-header { background: linear-gradient(135deg, #0d6efd, #004fbc); color: white; padding: 20px; text-align: center; }
         .qr-area { background: #fdfdfd; padding: 20px; border-radius: 15px; display: inline-block; box-shadow: inset 0 0 10px rgba(0,0,0,0.05); }
-        @media print { .no-print { display: none !important; } }
+        .badge-sanitario { font-size: 0.8rem; margin-bottom: 5px; }
+        @media print { 
+            .no-print { display: none !important; } 
+            body { padding-top: 0; background-color: white; }
+            .carnet-box { box-shadow: none; border: 1px solid #ccc; }
+        }
     </style>
 </head>
 <body>
@@ -22,34 +28,56 @@
 </div>
 
 <div class="carnet-box">
-    <div class="carnet-header text-center">
-        <h4 class="fw-bold m-0">🪪 IDENTIFICACIÓN OFICIAL Canina</h4>
+    <div class="carnet-header">
+        <h4 class="fw-bold m-0 text-uppercase">🪪 ID OFICIAL: {{ dog.especie }}</h4>
         <small class="opacity-75">Sistema Integrado de Control Epidemiológico</small>
     </div>
     
     <div class="p-4 text-center">
         {% if dog.foto %}
-        <img src="{{ url_for('static', filename='uploads/' + dog.foto) }}" class="rounded-circle shadow mb-3" style="width: 110px; height: 110px; object-fit: cover; border: 3px solid #0d6efd;">
+        <img src="{{ url_for('static', filename='uploads/' + dog.foto) }}" class="rounded-circle shadow mb-3" style="width: 110px; height: 110px; object-fit: cover; border: 3px solid #0d6efd;" alt="Foto del paciente">
         {% else %}
-        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3 shadow" style="width: 110px; height: 110px; font-size: 3rem;">🐶</div>
+        <div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3 shadow" style="width: 110px; height: 110px; font-size: 3rem;">🐾</div>
         {% endif %}
         
         <h3 class="fw-bold text-dark mb-1 text-uppercase">{{ dog.nombre or 'Sin Nombre' }}</h3>
         <span class="badge bg-secondary mb-4 fs-6">{{ dog.raza }} | {{ dog.edad }}</span>
         
-        <div class="row text-start bg-light p-3 rounded mb-4 border small">
+        <!-- DATOS GENERALES -->
+        <div class="row text-start bg-light p-3 rounded mb-3 border small">
             <div class="col-6"><b>ID Sistema:</b> #{{ dog.id }}</div>
             <div class="col-6"><b>Sexo:</b> {{ dog.sexo }}</div>
             <div class="col-12 mt-1"><b>Sector/Barrio:</b> {{ dog.sector }}</div>
             <div class="col-12 mt-1"><b>Responsable:</b> {{ dog.nombre_propietario or 'Comunitario' }}</div>
-            <div class="col-12 mt-1"><b>Contacto de Emergencia:</b> {{ dog.whatsapp_propietario }}</div>
+            <div class="col-12 mt-1"><b>Contacto:</b> {{ dog.whatsapp_propietario }}</div>
         </div>
 
-        <h6 class="fw-bold text-danger mb-2">🚨 ESCANEAR EN CASO DE EXTRAVÍO</h6>
+        <!-- NUEVO MÓDULO: CONTROLES SANITARIOS BASE -->
+        <div class="text-start p-3 rounded mb-4 border border-info" style="background-color: #f0f8ff;">
+            <h6 class="fw-bold text-primary border-bottom border-info pb-2 mb-2">🩺 Controles Sanitarios Base</h6>
+            <div class="d-flex flex-wrap gap-1">
+                {% if dog.esterilizado %}<span class="badge bg-success badge-sanitario">✔️ Esterilizado/Castrado</span>{% endif %}
+                {% if dog.desparasitado %}<span class="badge bg-success badge-sanitario">✔️ Desparasitado</span>{% endif %}
+                
+                {% if dog.vacuna_parvovirus %}<span class="badge bg-primary badge-sanitario">💉 Parvovirus</span>{% endif %}
+                {% if dog.vacuna_moquillo %}<span class="badge bg-primary badge-sanitario">💉 Moquillo</span>{% endif %}
+                {% if dog.vacuna_triple %}<span class="badge bg-primary badge-sanitario">💉 Triple</span>{% endif %}
+                {% if dog.vacuna_sextuple %}<span class="badge bg-primary badge-sanitario">💉 Séxtuple</span>{% endif %}
+                {% if dog.vacuna_antirrabica %}<span class="badge bg-danger badge-sanitario">💉 Antirrábica</span>{% endif %}
+                
+                <!-- Si no tiene nada registrado, muestra este mensaje -->
+                {% if not dog.esterilizado and not dog.desparasitado and not dog.vacuna_parvovirus and not dog.vacuna_moquillo and not dog.vacuna_triple and not dog.vacuna_sextuple and not dog.vacuna_antirrabica %}
+                <span class="text-muted fst-italic small">Sin registros preventivos iniciales marcados.</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- CÓDIGO QR DE RASTREO PÚBLICO -->
+        <h6 class="fw-bold text-danger mb-2">🚨 ESCANEAR PARA LOCALIZAR / REPORTAR</h6>
         <div class="qr-area mb-2">
             <div id="qrcode"></div>
         </div>
-        <p class="text-muted style='font-size:0.75rem;'">Permite reportar la ubicación exacta del animal al tutor en tiempo real.</p>
+        <p class="text-muted" style="font-size:0.75rem;">El escaneo permite reportar la ubicación GPS exacta del animal al sistema y al tutor en tiempo real.</p>
     </div>
 </div>
 
